@@ -125,8 +125,10 @@ int main(int argc, char** argv) {
   std::array<double, 7> q_array{};
   std::array<double, 7> dq_array{};
   std::array<double, 7> tau_sensed_array{};
+  std::array<double, 7> gravity_vector{};
+  std::array<double, 7> coriolis{};
 
-  std::array<double, 42> M_array{};  
+  std::array<double, 49> M_array{};  
   MassMatrix = Eigen::MatrixXd::Identity(7,7);
 
   redis_client.setDoubleArray(JOINT_TORQUES_COMMANDED_KEY, tau_cmd_array, 7);
@@ -149,11 +151,15 @@ int main(int argc, char** argv) {
   key_names.push_back(JOINT_ANGLES_KEY);
   key_names.push_back(JOINT_VELOCITIES_KEY);
   key_names.push_back(JOINT_TORQUES_SENSED_KEY);
+  key_names.push_back(ROBOT_GRAVITY_KEY);
+  key_names.push_back(CORIOLIS_KEY);
 
   std::vector<std::array<double, 7>> sensor_feedback;
   sensor_feedback.push_back(q_array);
   sensor_feedback.push_back(dq_array);
   sensor_feedback.push_back(tau_sensed_array);
+  sensor_feedback.push_back(gravity_vector);
+  sensor_feedback.push_back(coriolis);
 
   std::clock_t start;
   double duration;
@@ -173,66 +179,56 @@ int main(int argc, char** argv) {
     auto torque_control_callback = [&](const franka::RobotState& robot_state,
                                       franka::Duration period) -> franka::Torques 
     {
-      // send robot state to redis
       // start = std::clock();
-
-      // redis_client.setDoubleArray(JOINT_ANGLES_KEY, robot_state.q, 7);
-      // redis_client.setDoubleArray(JOINT_VELOCITIES_KEY, robot_state.dq, 7);
-      // redis_client.setDoubleArray(JOINT_TORQUES_SENSED_KEY, robot_state.tau_J, 7);
-
       sensor_feedback[0] = robot_state.q;
       sensor_feedback[1] = robot_state.dq;
       sensor_feedback[2] = robot_state.tau_J;
-      // redis_client.setCommandBatch(key_names, sensor_feedback, 3);
+      sensor_feedback[3] = model.gravity(robot_state);
+      sensor_feedback[4] = model.coriolis(robot_state);
 
+      M_array = model.mass(robot_state);
+      Eigen::Map<const Eigen::Matrix<double, 7, 7> > MassMatrix(M_array.data());
+      // duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
+      // std::cout << "duration 1 : "<< duration <<'\n';
 
-      // TODO : send mass matrix, coriolis and gravity
-
-
-
-
+      // start = std::clock();
       redis_client.setGetBatchCommands(key_names, tau_cmd_array, MassMatrix, sensor_feedback);
-      // redis_client.getDoubleArray(JOINT_TORQUES_COMMANDED_KEY, tau_cmd_array, 7);
+      // duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
+      // std::cout << "duration 2 : "<< duration <<'\n' << std::endl;
 
-
-      if(counter % 100 == 0)
-      {
-        std::cout << "joint angles : ";
-        for(int i=0; i<7; i++)
-        {
-          std::cout << " " << robot_state.q[i] << " ";
-        }
-        std::cout << std::endl;
-        std::cout << "joint velocities : ";
-        for(int i=0; i<7; i++)
-        {
-          std::cout << " " << robot_state.dq[i] << " ";
-        }
-        std::cout << std::endl;
-        std::cout << "joint torques sensed : ";
-        for(int i=0; i<7; i++)
-        {
-          std::cout << " " << robot_state.tau_J[i] << " ";
-        }
-        std::cout << std::endl;
-        std::cout << "torque commanded : ";
-        for(int i=0; i<7; i++)
-        {
-          std::cout << " " << tau_cmd_array[i] << " ";
-        }
-        std::cout << std::endl;
-        std::cout << std::endl;
-      }
+      // if(counter % 100 == 0)
+      // {
+      //   std::cout << "joint angles : ";
+      //   for(int i=0; i<7; i++)
+      //   {
+      //     std::cout << " " << robot_state.q[i] << " ";
+      //   }
+      //   std::cout << std::endl;
+      //   std::cout << "joint velocities : ";
+      //   for(int i=0; i<7; i++)
+      //   {
+      //     std::cout << " " << robot_state.dq[i] << " ";
+      //   }
+      //   std::cout << std::endl;
+      //   std::cout << "joint torques sensed : ";
+      //   for(int i=0; i<7; i++)
+      //   {
+      //     std::cout << " " << robot_state.tau_J[i] << " ";
+      //   }
+      //   std::cout << std::endl;
+      //   std::cout << "torque commanded : ";
+      //   for(int i=0; i<7; i++)
+      //   {
+      //     std::cout << " " << tau_cmd_array[i] << " ";
+      //   }
+      //   std::cout << std::endl;
+      //   std::cout << std::endl;
+      // }
 
       for(int i=0; i<7; i++)
       {
         tau_cmd_array[i] = 0;
-      }  
-
-      // gripper.grasp(0.15, 0.01, 0.0);
-      // gripper.move(0.15, 0.01);
-      // duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
-      // std::cout << "duration : "<< duration <<'\n';
+      }
 
       counter++;
       return tau_cmd_array;
@@ -240,10 +236,12 @@ int main(int argc, char** argv) {
 
     // start real-time control loop
     robot.control(torque_control_callback);
+    // robot.control(torque_control_callback, false, franka::kMaxCutoffFrequency);
 
   } catch (const std::exception& ex) {
     // print exception
     std::cout << ex.what() << std::endl;
+    std::cout << "counter : " << counter << std::endl;
   }
 
 
