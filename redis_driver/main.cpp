@@ -24,7 +24,7 @@ const std::string JOINT_TORQUES_SENSED_KEY = "sai2::FrankaPanda::sensors::torque
 const std::string MASSMATRIX_KEY = "sai2::FrankaPanda::sensors::model::massmatrix";
 const std::string CORIOLIS_KEY = "sai2::FrankaPanda::sensors::model::coriolis";
 const std::string ROBOT_GRAVITY_KEY = "sai2::FrankaPanda::sensors::model::robot_gravity";
-Eigen::MatrixXd M_;
+Eigen::MatrixXd MassMatrix;
 
 unsigned long long counter = 0;
 
@@ -127,6 +127,7 @@ int main(int argc, char** argv) {
   std::array<double, 7> tau_sensed_array{};
 
   std::array<double, 42> M_array{};  
+  MassMatrix = Eigen::MatrixXd::Identity(7,7);
 
   redis_client.setDoubleArray(JOINT_TORQUES_COMMANDED_KEY, tau_cmd_array, 7);
   // Safety to detect if controller is already running : wait 50 milliseconds
@@ -143,6 +144,8 @@ int main(int argc, char** argv) {
 
   // prepare batch command
   std::vector<string> key_names;
+  key_names.push_back(JOINT_TORQUES_COMMANDED_KEY);
+  key_names.push_back(MASSMATRIX_KEY);
   key_names.push_back(JOINT_ANGLES_KEY);
   key_names.push_back(JOINT_VELOCITIES_KEY);
   key_names.push_back(JOINT_TORQUES_SENSED_KEY);
@@ -156,11 +159,10 @@ int main(int argc, char** argv) {
   double duration;
 
   try {
-    // connect to robot
+    // connect to robot and gripper
     franka::Robot robot("172.16.0.10");
     // load the kinematics and dynamics model
     franka::Model model = robot.loadModel();
-
 
     // set collision behavior
     robot.setCollisionBehavior({{100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0}},
@@ -181,23 +183,58 @@ int main(int argc, char** argv) {
       sensor_feedback[0] = robot_state.q;
       sensor_feedback[1] = robot_state.dq;
       sensor_feedback[2] = robot_state.tau_J;
-      redis_client.setCommandBatch(key_names, sensor_feedback, 3);
+      // redis_client.setCommandBatch(key_names, sensor_feedback, 3);
 
 
       // TODO : send mass matrix, coriolis and gravity
 
 
-      // TODO : handle gripper
 
-      redis_client.getDoubleArray(JOINT_TORQUES_COMMANDED_KEY, tau_cmd_array, 7);
+
+      redis_client.setGetBatchCommands(key_names, tau_cmd_array, MassMatrix, sensor_feedback);
+      // redis_client.getDoubleArray(JOINT_TORQUES_COMMANDED_KEY, tau_cmd_array, 7);
+
+
+      if(counter % 100 == 0)
+      {
+        std::cout << "joint angles : ";
+        for(int i=0; i<7; i++)
+        {
+          std::cout << " " << robot_state.q[i] << " ";
+        }
+        std::cout << std::endl;
+        std::cout << "joint velocities : ";
+        for(int i=0; i<7; i++)
+        {
+          std::cout << " " << robot_state.dq[i] << " ";
+        }
+        std::cout << std::endl;
+        std::cout << "joint torques sensed : ";
+        for(int i=0; i<7; i++)
+        {
+          std::cout << " " << robot_state.tau_J[i] << " ";
+        }
+        std::cout << std::endl;
+        std::cout << "torque commanded : ";
+        for(int i=0; i<7; i++)
+        {
+          std::cout << " " << tau_cmd_array[i] << " ";
+        }
+        std::cout << std::endl;
+        std::cout << std::endl;
+      }
 
       for(int i=0; i<7; i++)
       {
         tau_cmd_array[i] = 0;
       }  
 
+      // gripper.grasp(0.15, 0.01, 0.0);
+      // gripper.move(0.15, 0.01);
       // duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
       // std::cout << "duration : "<< duration <<'\n';
+
+      counter++;
       return tau_cmd_array;
     };
 
@@ -208,5 +245,8 @@ int main(int argc, char** argv) {
     // print exception
     std::cout << ex.what() << std::endl;
   }
+
+
+
   return 0;
 }

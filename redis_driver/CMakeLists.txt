@@ -3,8 +3,8 @@ cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
 project(franka_panda_redis_driver)
 
 # CMAKE OPTIONS
-# set(CMAKE_BUILD_TYPE Debug)
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
+# set(CMAKE_BUILD_TYPE Release)
 # SET(CMAKE_VERBOSE_MAKEFILE ON)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -16,6 +16,7 @@ set(SOURCES
 
 # Create a library
 add_executable(${PROJECT_NAME} ${SOURCES})
+add_executable(gripper_driver gripper.cpp)
 
 # LIBFRANKA
 find_package(Franka REQUIRED PATHS ${PROJECT_SOURCE_DIR}/../libfranka/build)
@@ -55,4 +56,5 @@ set(franka_panda_redis_driver_LIBRARIES
 
 include_directories( ${franka_panda_redis_driver_INCLUDE_DIRS} )
 target_link_libraries(${PROJECT_NAME} ${franka_panda_redis_driver_LIBRARIES})
+target_link_libraries(gripper_driver ${franka_panda_redis_driver_LIBRARIES})
 

@@ -11,6 +11,8 @@
 #include <iomanip>
 #include <algorithm>
 
+#define CHECK(X) if ( !X || X->type == REDIS_REPLY_ERROR ) { printf("Error\n"); exit(-1); }
+
 using std::cout;
 using std::string;
 using std::runtime_error;
@@ -135,7 +137,56 @@ public:
 		{
 			int r = redisGetReply(context_, (void **) &reply_ );
 			if ( r == REDIS_ERR ) { printf("Error\n"); exit(-1); }
-			// CHECK(reply_);        
+			CHECK(reply_);        
+			freeReplyObject(reply_);
+		}
+	}
+
+	void setGetBatchCommands(const std::vector<string> &cmd_mssg_vec, 
+			std::array<double, 7> &get_data_mssg_cmd_torques,
+			const Eigen::MatrixXd &set_data_mssg_massmatrix,
+			const std::vector<std::array<double, 7>> &set_data_mssg_vec)
+	{
+		string data_mssg_indiv;
+		string batch_mssg = "";
+
+		int n_messages = set_data_mssg_vec.size() + 2;
+
+		if(cmd_mssg_vec.size() != n_messages)
+		{
+			throw(runtime_error("Not the same number of messages and keys as the expected one in setCommandBatch\n"));
+		}
+
+		// get command
+		int cmd = 0;
+		redisAppendCommand(context_,"GET %s", cmd_mssg_vec[0].c_str());
+		++cmd;
+
+		// set commands
+		hEigentoStringArrayJSON(set_data_mssg_massmatrix, data_mssg_indiv);
+		redisAppendCommand(context_,"SET %s %s", cmd_mssg_vec[1].c_str(), data_mssg_indiv.c_str());
+		++cmd;
+		for(int i=2; i < n_messages; i++)
+		{
+			hDoubleArraytoStringArrayJSON(set_data_mssg_vec[i-2], 7, data_mssg_indiv);
+			redisAppendCommand(context_,"SET %s %s", cmd_mssg_vec[i].c_str(), data_mssg_indiv.c_str());
+			++cmd;
+		}
+	    /* Read (and process) the repliy to the get command */
+		int r = redisGetReply(context_, (void **) &reply_ );
+		if ( r == REDIS_ERR ) { printf("Error\n"); exit(-1); }	    
+		CHECK(reply_);   
+		if(!hDoubleArrayFromStringArrayJSON(get_data_mssg_cmd_torques, 7, reply_->str)) {
+			throw(runtime_error("Could not deserialize custom string to eigen data!"));
+		}
+		cmd--;
+
+	    /* Read (and ignore) the replies to the set commands */
+		while ( cmd-- > 0 )
+		{
+			int r = redisGetReply(context_, (void **) &reply_ );
+			if ( r == REDIS_ERR ) { printf("Error\n"); exit(-1); }
+			CHECK(reply_);        
 			freeReplyObject(reply_);
 		}
 	}
