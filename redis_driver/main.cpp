@@ -225,10 +225,10 @@ int main(int argc, char** argv) {
       //   std::cout << std::endl;
       // }
 
-      for(int i=0; i<7; i++)
-      {
-        tau_cmd_array[i] = 0;
-      }
+      // for(int i=0; i<7; i++)
+      // {
+      //   tau_cmd_array[i] = 0;
+      // }
 
       counter++;
       return tau_cmd_array;
