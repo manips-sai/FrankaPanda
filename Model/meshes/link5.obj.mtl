@@ -2,8 +2,8 @@
 # (assimp v3.1.187496374)
 
 newmtl DefaultMaterial
-Kd 0.6 0.6 0.6
-Ka 0.05 0.05 0.05
-Ks 0.6 0.6 0.6
+Ka 0.10 0.10 0.10
+Kd 0.10 0.10 0.10
+Ks 0.10 0.10 0.10
 illum 1
 
