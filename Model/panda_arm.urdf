@@ -1,5 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <robot name="panda">
+
     <link name="link0">
       <inertial>
         <origin xyz="0 0 0.05" rpy="0 0 0" />
@@ -126,7 +127,7 @@
         <inertia ixx="0.05" iyy="0.05" izz="0.05" ixy="0" ixz="0" iyz="0" />
       </inertial>
       <visual>
-        <origin xyz="0 0 0" rpy="0 0 0.78539816339" />
+        <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
           <mesh filename="../../../Model/meshes/link7.obj"/>
         </geometry>
@@ -151,6 +152,7 @@
       <parent link="link1"/>
       <child link="link2"/>
       <axis xyz="0 0 1"/>
+      <calibration falling="-45.0" />
       <limit effort="87" lower="-1.7628" upper="1.7628" velocity="2.1750"/>
     </joint>
     <joint name="joint3" type="revolute">
@@ -167,6 +169,7 @@
       <parent link="link3"/>
       <child link="link4"/>
       <axis xyz="0 0 1"/>
+      <calibration falling="-125.0" />
       <limit effort="87" lower="-3.0718" upper="-0.0698" velocity="2.1750"/>
     </joint>
     <joint name="joint5" type="revolute">
@@ -183,6 +186,7 @@
       <parent link="link5"/>
       <child link="link6"/>
       <axis xyz="0 0 1"/>
+      <calibration falling="80.0" />
       <limit effort="12" lower="-0.0175" upper="3.7525" velocity="2.6100"/>
     </joint>
     <joint name="joint7" type="revolute">
@@ -193,4 +197,12 @@
       <axis xyz="0 0 1"/>
       <limit effort="12" lower="-2.8973" upper="2.8973" velocity="2.6100"/>
     </joint>
+<!--     <link name="link8"/>
+    <joint name="joint8" type="fixed">
+      <origin rpy="0 0 0" xyz="0 0 0.107"/>
+      <parent link="link7"/>
+      <child link="link8"/>
+      <axis xyz="0 0 0"/>
+    </joint> -->
+  <!-- </xacro:macro> -->
 </robot>

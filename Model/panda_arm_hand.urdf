@@ -1,5 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <robot name="panda_hand">
+
     <link name="link0">
       <inertial>
         <origin xyz="0 0 0.05" rpy="0 0 0" />
@@ -126,7 +127,7 @@
         <inertia ixx="0.09" iyy="0.05" izz="0.07" ixy="0" ixz="0" iyz="0" />
       </inertial>
       <visual>
-        <origin xyz="0 0 0" rpy="0 0 0.78539816339" />
+        <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
           <mesh filename="../../../Model/meshes/link7.obj"/>
         </geometry>
@@ -137,7 +138,7 @@
         </geometry>
       </collision> -->
       <visual>
-        <origin xyz="0 0 0.107" rpy="0 0 0" />
+        <origin xyz="0 0 0.107" rpy="0 0 -0.78539816339" />
         <geometry>
           <mesh filename="../../../Model/meshes/hand.obj"/>
         </geometry>
@@ -199,6 +200,7 @@
       <parent link="link1"/>
       <child link="link2"/>
       <axis xyz="0 0 1"/>
+      <calibration falling="-45.0" />
       <limit effort="87" lower="-1.7628" upper="1.7628" velocity="2.1750"/>
     </joint>
     <joint name="joint3" type="revolute">
@@ -215,6 +217,7 @@
       <parent link="link3"/>
       <child link="link4"/>
       <axis xyz="0 0 1"/>
+      <calibration falling="-125.0" />
       <limit effort="87" lower="-3.0718" upper="-0.0698" velocity="2.1750"/>
     </joint>
     <joint name="joint5" type="revolute">
@@ -231,6 +234,7 @@
       <parent link="link5"/>
       <child link="link6"/>
       <axis xyz="0 0 1"/>
+      <calibration falling="80.0" />
       <limit effort="12" lower="-0.0175" upper="3.7525" velocity="2.6100"/>
     </joint>
     <joint name="joint7" type="revolute">
@@ -244,15 +248,17 @@
     <joint name="finger_joint1" type="prismatic">
       <parent link="link7"/>
       <child link="leftfinger"/>
-      <origin xyz="0 0 0.1654" rpy="0 0 0"/>
+      <origin xyz="0 0 0.1654" rpy="0 0 -0.78539816339"/>
       <axis xyz="0 1 0"/>
+      <calibration rising="0.02" />
       <limit effort="20" lower="0.0" upper="0.04" velocity="0.2"/>
     </joint>
     <joint name="finger_joint2" type="prismatic">
       <parent link="link7"/>
       <child link="rightfinger"/>
-      <origin xyz="0 0 0.1654" rpy="0 0 0"/>
-      <axis xyz="0 -1 0"/>
+      <origin xyz="0 0 0.1654" rpy="0 0 -0.78539816339"/>
+      <axis xyz="0 1 0"/>
+      <calibration rising="-0.02" />
       <limit effort="20" lower="0.0" upper="0.04" velocity="0.2"/>
       <mimic joint="finger_joint1" />
     </joint>
