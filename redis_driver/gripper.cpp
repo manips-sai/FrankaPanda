@@ -27,6 +27,14 @@ unsigned long long counter = 0;
 
 
 int main(int argc, char** argv) {
+
+  if(argc < 2)
+  {
+    std::cout << "Please enter the robot ip as an argument" << std::endl;
+    return -1;
+  }
+  std::string robot_ip = argv[1];
+
   // start redis client
   CDatabaseRedisClient redis_client;
   HiredisServerInfo info;
@@ -53,17 +61,18 @@ int main(int argc, char** argv) {
 
   try {
     // connect to gripper
-    franka::Gripper gripper("172.16.0.10");
+    franka::Gripper gripper(robot_ip);
 
     // home the gripper
-    gripper.homing();
+    // gripper.homing();
 
     franka::GripperState gripper_state = gripper.readOnce();
     gripper_max_width = gripper_state.max_width;
     redis_client.setCommandIs(GRIPPER_MAX_WIDTH_KEY, std::to_string(gripper_max_width));
     redis_client.setCommandIs(GRIPPER_MODE_KEY, gripper_mode);
 
-    gripper_desired_width = 0.5*gripper_max_width;
+    // gripper_desired_width = 0.5*gripper_max_width;
+    gripper_desired_width = gripper_state.width;
     gripper_desired_speed = 0.07;
     gripper_desired_force = 0.0;
     gripper.move(gripper_desired_width, gripper_desired_speed);

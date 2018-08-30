@@ -105,6 +105,14 @@ void debug_function(CDatabaseRedisClient &redis_client)
 }
 
 int main(int argc, char** argv) {
+
+  if(argc < 2)
+  {
+    std::cout << "Please enter the robot ip as an argument" << std::endl;
+    return -1;
+  }
+  std::string robot_ip = argv[1];
+
   // start redis client
   CDatabaseRedisClient redis_client;
   HiredisServerInfo info;
@@ -166,7 +174,7 @@ int main(int argc, char** argv) {
 
   try {
     // connect to robot and gripper
-    franka::Robot robot("172.16.0.10");
+    franka::Robot robot(robot_ip);
     // load the kinematics and dynamics model
     franka::Model model = robot.loadModel();
 
