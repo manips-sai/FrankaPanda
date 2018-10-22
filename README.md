@@ -26,7 +26,8 @@ create a build folder inside libfranka and compile the library
 
 3. Build the driver
 
-		cd ../redis_driver
+		sudo apt-get install libjsoncpp-dev cpufrequtils
+		cd ../../redis_driver
 		mkdir build
 		cd build
 		cmake ..
@@ -41,7 +42,7 @@ Usage
 
 3. Open a terminal and go to the FrankaPanda/redis_driver folder
 
-		cd <path_to_FRankaPanda_directory>/redis_driver
+		cd <path_to_FrankaPanda_directory>/redis_driver
 
 3. Launch the redis server from the given script
 
@@ -50,3 +51,12 @@ Usage
 4. Launch the driver from the provided script. Make sure the ip address in the script is the one of your robot controller
 
 		sh launch_driver.sh
+
+Gripper usage
+-------------
+
+Once the robot interface is connected through the web browser and the gripper is initialized you can launch the gripper driver
+		
+		./build/gripper_driver <ip-address-of-robot>
+
+You can set the desired width, desired speed, desired force and gripper mode (m for motion g for grasp) through redis
