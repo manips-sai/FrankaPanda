@@ -33,6 +33,10 @@ create a build folder inside libfranka and compile the library
 		cmake ..
 		make
 
+4. Don't forget to give realtime permissions to your computer account
+
+		sudo usermod -a -G realtime $(whoami)
+
 Usage
 -----
 
