@@ -13,12 +13,12 @@
 #include "RedisClient.h"
 
 // - gripper
-const std::string GRIPPER_MODE_KEY  = "sai2::FrankaPanda::gripper::mode"; // m for move and g for graps
-const std::string GRIPPER_MAX_WIDTH_KEY  = "sai2::FrankaPanda::gripper::max_width";
-const std::string GRIPPER_CURRENT_WIDTH_KEY  = "sai2::FrankaPanda::gripper::current_width";
-const std::string GRIPPER_DESIRED_WIDTH_KEY  = "sai2::FrankaPanda::gripper::desired_width";
-const std::string GRIPPER_DESIRED_SPEED_KEY  = "sai2::FrankaPanda::gripper::desired_speed";
-const std::string GRIPPER_DESIRED_FORCE_KEY  = "sai2::FrankaPanda::gripper::desired_force";
+std::string GRIPPER_MODE_KEY; // m for move and g for graps
+std::string GRIPPER_MAX_WIDTH_KEY;
+std::string GRIPPER_CURRENT_WIDTH_KEY;
+std::string GRIPPER_DESIRED_WIDTH_KEY;
+std::string GRIPPER_DESIRED_SPEED_KEY;
+std::string GRIPPER_DESIRED_FORCE_KEY;
 
 #include <signal.h>
 bool runloop = false;
@@ -34,6 +34,34 @@ int main(int argc, char** argv) {
     return -1;
   }
   std::string robot_ip = argv[1];
+
+  if(robot_ip == "172.16.0.10")
+  {
+    GRIPPER_MODE_KEY  = "sai2::FrankaPanda::Clyde::gripper::mode"; 
+    GRIPPER_MAX_WIDTH_KEY  = "sai2::FrankaPanda::Clyde::gripper::max_width";
+    GRIPPER_CURRENT_WIDTH_KEY  = "sai2::FrankaPanda::Clyde::gripper::current_width";
+    GRIPPER_DESIRED_WIDTH_KEY  = "sai2::FrankaPanda::Clyde::gripper::desired_width";
+    GRIPPER_DESIRED_SPEED_KEY  = "sai2::FrankaPanda::Clyde::gripper::desired_speed";
+    GRIPPER_DESIRED_FORCE_KEY  = "sai2::FrankaPanda::Clyde::gripper::desired_force";   
+  }
+  else if(robot_ip == "172.16.0.11")
+  {
+    GRIPPER_MODE_KEY  = "sai2::FrankaPanda::Bonnie::gripper::mode"; 
+    GRIPPER_MAX_WIDTH_KEY  = "sai2::FrankaPanda::Bonnie::gripper::max_width";
+    GRIPPER_CURRENT_WIDTH_KEY  = "sai2::FrankaPanda::Bonnie::gripper::current_width";
+    GRIPPER_DESIRED_WIDTH_KEY  = "sai2::FrankaPanda::Bonnie::gripper::desired_width";
+    GRIPPER_DESIRED_SPEED_KEY  = "sai2::FrankaPanda::Bonnie::gripper::desired_speed";
+    GRIPPER_DESIRED_FORCE_KEY  = "sai2::FrankaPanda::Bonnie::gripper::desired_force";    
+  }
+  else
+  {
+    GRIPPER_MODE_KEY  = "sai2::FrankaPanda::gripper::mode"; 
+    GRIPPER_MAX_WIDTH_KEY  = "sai2::FrankaPanda::gripper::max_width";
+    GRIPPER_CURRENT_WIDTH_KEY  = "sai2::FrankaPanda::gripper::current_width";
+    GRIPPER_DESIRED_WIDTH_KEY  = "sai2::FrankaPanda::gripper::desired_width";
+    GRIPPER_DESIRED_SPEED_KEY  = "sai2::FrankaPanda::gripper::desired_speed";
+    GRIPPER_DESIRED_FORCE_KEY  = "sai2::FrankaPanda::gripper::desired_force";
+  }
 
   // start redis client
   CDatabaseRedisClient redis_client;
@@ -74,7 +102,7 @@ int main(int argc, char** argv) {
     // gripper_desired_width = 0.5*gripper_max_width;
     gripper_desired_width = gripper_state.width;
     gripper_desired_speed = 0.07;
-    gripper_desired_force = 0.0;
+    gripper_desired_force = 5.0;
     gripper.move(gripper_desired_width, gripper_desired_speed);
 
     redis_client.setCommandIs(GRIPPER_DESIRED_WIDTH_KEY, std::to_string(gripper_desired_width));
@@ -94,26 +122,26 @@ int main(int argc, char** argv) {
       if(gripper_desired_width_tmp > gripper_max_width)
       {
         gripper_desired_width_tmp = gripper_max_width;
-        redis_client.setCommandIs(GRIPPER_DESIRED_WIDTH_KEY, std::to_string(gripper_max_width));
+        redis_client.setCommandIs(GRIPPER_DESIRED_WIDTH_KEY, std::to_string(0.08));
         std::cout << "WARNING : Desired gripper width higher than max width. saturating to max width\n" << std::endl;
       }
       if(gripper_desired_width_tmp < 0)
       {
         gripper_desired_width_tmp = 0;
         redis_client.setCommandIs(GRIPPER_DESIRED_WIDTH_KEY, std::to_string(0));
-        std::cout << "WARNING : Desired gripper width lower than 0. saturating to max 0\n" << std::endl;
+        std::cout << "WARNING : Desired gripper width lower than 0. saturating to min (0.0)\n" << std::endl;
       }
       if(gripper_desired_speed_tmp < 0)
       {
-        gripper_desired_speed_tmp = 0;
+        gripper_desired_speed_tmp = 0.01;
         redis_client.setCommandIs(GRIPPER_DESIRED_SPEED_KEY, std::to_string(0));
-        std::cout << "WARNING : Desired gripper speed lower than 0. saturating to max 0\n" << std::endl;
+        std::cout << "WARNING : Desired gripper speed lower than 0. saturating to min (0.01)\n" << std::endl;
       } 
       if(gripper_desired_force_tmp < 0)
       {
-        gripper_desired_force_tmp = 0;
+        gripper_desired_force_tmp = 0.1;
         redis_client.setCommandIs(GRIPPER_DESIRED_FORCE_KEY, std::to_string(0));
-        std::cout << "WARNING : Desired gripper speed lower than 0. saturating to max 0\n" << std::endl;
+        std::cout << "WARNING : Desired gripper force lower than 0. saturating to min (0.1)\n" << std::endl;
       } 
 
       if(gripper_desired_width != gripper_desired_width_tmp ||
@@ -124,7 +152,7 @@ int main(int argc, char** argv) {
         flag_command_changed = true;
         gripper_desired_width = gripper_desired_width_tmp;
         gripper_desired_speed = gripper_desired_speed_tmp;
-        gripper_desired_force_tmp = gripper_desired_force_tmp;
+        gripper_desired_force = gripper_desired_force_tmp;
         gripper_mode = gripper_mode_tmp;
       }
 
@@ -136,7 +164,8 @@ int main(int argc, char** argv) {
         }
         else if(gripper_mode == "g")
         {
-          gripper.grasp(gripper_desired_width, gripper_desired_speed, gripper_desired_force);
+          bool grasp_successful = gripper.grasp(0.0, gripper_desired_speed, gripper_desired_force, 1.0, 1.0);
+          // std::cout << "grasp succesful : " << grasp_successful << "  force : " << gripper_desired_force << std::endl;
         }
         else
         {
