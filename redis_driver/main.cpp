@@ -32,19 +32,19 @@ std::string ROBOT_GRAVITY_KEY;
 // const std::array<double, 7> joint_position_min = {-2.89, -1.76, -2.89, -3.07, -2.89, -0.01, -2.89};
 // const std::array<double, 7> joint_velocity_limits = {2.17, 2.17, 2.17, 2.17, 2.61, 2.61, 2.61};
 // const std::array<double, 7> joint_torques_limits = {87, 87, 87, 87, 12, 12, 12};
-const std::array<double, 7> joint_position_max = {2.7, 1.6, 2.7, -0.2, 2.7, 3.6, 2.7};
-const std::array<double, 7> joint_position_min = {-2.7, -1.6, -2.7, -3.0, -2.7, 0.2, -2.7};
+const std::array<double, 7> joint_position_max = {2.8, 1.7, 2.85, -0.1, 2.8, 3.7, 2.87};
+const std::array<double, 7> joint_position_min = {-2.8, -1.7, -2.85, -3.0, -2.8, 0.05, -2.87};
 const std::array<double, 7> joint_velocity_limits = {2.0, 2.0, 2.0, 2.0, 2.5, 2.5, 2.5};
 const std::array<double, 7> joint_torques_limits = {85, 85, 85, 85, 10, 10, 10};
 
-const Eigen::Vector3d monitoring_point_ee_frame = Eigen::Vector3d(0.0, 0.0, 0.15);
-const double safety_plane_z_coordinate = 0.28;
+const Eigen::Vector3d monitoring_point_ee_frame = Eigen::Vector3d(0.0, 0.0, 0.05);
+const double safety_plane_z_coordinate = 0.35;
 const double safety_cylinder_radius = 0.28;
 const double safety_cylinder_height = 0.53;
 
 bool safety_mode_flag = false;
 int safety_controller_count = 200;
-const double kv_safety = 20; 
+const std::array<double, 7> kv_safety = {20.0, 20.0, 20.0, 15.0, 10.0, 10.0, 5.0};
 
 Eigen::MatrixXd MassMatrix;
 std::array<double, 7> tau_cmd_array{};
@@ -173,10 +173,15 @@ int main(int argc, char** argv) {
     franka::Model model = robot.loadModel();
 
     // set collision behavior
+    // robot.setCollisionBehavior({{100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0}},
+    //                            {{100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0}},
+    //                            {{100.0, 100.0, 100.0, 100.0, 100.0, 100.0}},
+    //                            {{100.0, 100.0, 100.0, 100.0, 100.0, 100.0}});
+
     robot.setCollisionBehavior({{100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0}},
                                {{100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0}},
-                               {{100.0, 100.0, 100.0, 100.0, 100.0, 100.0}},
-                               {{100.0, 100.0, 100.0, 100.0, 100.0, 100.0}});
+                               {{200.0, 200.0, 200.0, 100.0, 100.0, 100.0}},
+                               {{200.0, 200.0, 200.0, 100.0, 100.0, 100.0}});
 
     auto torque_control_callback = [&](const franka::RobotState& robot_state,
                                       franka::Duration period) -> franka::Torques 
@@ -271,7 +276,7 @@ int main(int argc, char** argv) {
       {
         for(int i=0 ; i<7 ; i++)
         {
-          tau_cmd_array[i] = -kv_safety*robot_state.dq[i];
+          tau_cmd_array[i] = -kv_safety[i]*robot_state.dq[i];
         }
 
         if(safety_controller_count == 0)
