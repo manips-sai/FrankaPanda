@@ -50,7 +50,7 @@ ALL_PROCESS_IDS=($(ls /proc/${MAIN_PROCESS_ID}/task))
 sudo renice -n -39 -p ${ALL_PROCESS_IDS[@]}
 
 # catch CTRL+C (SIGINT) from user to shut down the main process
-trap "redis-cli shutdown" INT
+trap "redis-cli shutdown; exit" INT
 
 # keep script running until the process is stopped
 wait ${MAIN_PROCESS_ID}
