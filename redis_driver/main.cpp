@@ -82,8 +82,10 @@ unsigned long long counter = 0;
 
 enum Limit {
     SAFE = 0,
-    MIN,  
-    MAX 
+    MIN_SOFT,  // soft lower limit (velocity damping only)
+    MIN_HARD,  // hard lower limit (velocity damping + position holding)
+    MAX_SOFT,  // soft upper limit (velocity damping only)
+    MAX_HARD  // hard upper limit (velocity damping + position holding)
 };
 
 int main(int argc, char** argv) {
@@ -186,6 +188,7 @@ int main(int argc, char** argv) {
     std::vector<int> _limit_flag {7, SAFE};
     Eigen::VectorXd _ddq = Eigen::VectorXd::Zero(7);
     Eigen::VectorXd _dq_estimate = Eigen::VectorXd::Zero(7);
+    Eigen::VectorXd _delta_q = Eigen::VectorXd::Zero(7);
     double _dq_tol = 1e-1;  // velocity threshold to switch out of safety 
     double _tau_tol = 1e0;  // tau threshold to switch out of safety 
     Eigen::MatrixXd _J_s;  // constraint task jacobian for nullspace projection (n_limited x dof) 
@@ -206,23 +209,31 @@ int main(int argc, char** argv) {
     }
 
     // zone definition
-    double soft_sf = 0.95;  // start of damping zone and exponential kp gain  
+    double soft_sf = 0.94;  // start of damping zone 
+    double hard_sf = 0.96;  // start of feedback zone (exponential kp gain)
     double kv_scalar = 80;  // set kv constant at high gain
     double kp_scalar = 0; 
 
     Eigen::VectorXd soft_min_angles(7);
     Eigen::VectorXd soft_max_angles(7);
+    Eigen::VectorXd hard_min_angles(7);
+    Eigen::VectorXd hard_max_angles(7);
 
     for (int i = 0; i < 7; ++i) {
         soft_min_angles(i) = soft_sf * joint_position_min_default[i];
+        hard_min_angles(i) = hard_sf * joint_position_min_default[i];
         soft_max_angles(i) = soft_sf * joint_position_max_default[i];
+        hard_max_angles(i) = hard_sf * joint_position_max_default[i];
     }
 
-    // manual offsets (around 3 degrees removal)
-    soft_max_angles(1) -= 0.1;  // joint 2 max angle isn't good 
-    soft_max_angles(3) -= 0.05;
+    // manual offsets
+    soft_max_angles(1) -= 0.1;  
+    soft_max_angles(3) -= 0.1;
+    hard_max_angles(3) -= 0.1;
     soft_min_angles(5) += 0.05;
+    hard_min_angles(5) += 0.05;
     soft_min_angles(6) += 0.05;
+    hard_min_angles(6) += 0.05;
 
     // timing 
     std::clock_t start;
@@ -275,16 +286,23 @@ int main(int argc, char** argv) {
         // joint limit avoidance 
         _limited_joints.setZero();
         _tau_result = _tau + _sensed_torques - _coriolis;
+        _delta_q = _vel_filtered * (1. / 1000);
         for (int i = 0; i < 7; ++i) {
-            if (robot_state.q[i] > soft_min_angles(i) && robot_state.q[i] < soft_max_angles(i)) {
+            if (robot_state.q[i] + _delta_q(i) > soft_min_angles(i) && robot_state.q[i] + _delta_q(i) < soft_max_angles(i)) {
                 _limit_flag[i] = SAFE;
                 _dq_estimate(i) = 0;
-            } else if (robot_state.q[i] < soft_min_angles(i)) {
-                _limit_flag[i] = MIN;
+            } else if (robot_state.q[i] + _delta_q(i) < hard_min_angles(i)) {
+                _limit_flag[i] = MIN_HARD;
                 _limited_joints(i) = 1;
-            } else if (robot_state.q[i] > soft_max_angles(i)) {
-                _limit_flag[i] = MAX;
-                _limited_joints(i) = 1;         
+            } else if (robot_state.q[i] + _delta_q(i) < soft_min_angles(i)) {
+                _limit_flag[i] = MIN_SOFT;
+                _limited_joints(i) = 1;
+            } else if (robot_state.q[i] + _delta_q(i) > hard_max_angles(i)) {
+                _limit_flag[i] = MAX_HARD;
+                _limited_joints(i) = 1;
+            } else if (robot_state.q[i] + _delta_q(i) > soft_max_angles(i)) {
+                _limit_flag[i] = MAX_SOFT;   
+                _limited_joints(i) = 1;       
             }
         }
 
@@ -296,12 +314,12 @@ int main(int argc, char** argv) {
                 // _dq_estimate(i) += _ddq(i) * (1. / 1000);
                 _dq_estimate(i) = _vel_filtered(i) + _ddq(i) * (1. / 1000);
                 // _dq_estimate(i) = _vel_filtered(i);
-                if (_dq_estimate(i) > _dq_tol && _limit_flag[i] == MIN && _tau_result(i) > _tau_tol) {
-                    // accept torque commands from the controller if velocity estimate is pushing away from lower limit with a minimum magnitude (resultant torque in same direction as well)
+                if (_dq_estimate(i) > _dq_tol && (_limit_flag[i] == MIN_SOFT || _limit_flag[i] == MIN_HARD) && _tau_result(i) > _tau_tol) {
+                    // accept torque commands from the controller if velocity estimate is pushing away from lower limit with a minimum magnitude
                     _limit_flag[i] = SAFE;
                     _limited_joints(i) = 0;
-                } else if (_dq_estimate(i) < -_dq_tol && _limit_flag[i] == MAX && _tau_result(i) < -_tau_tol) {
-                    // accept torque commands from the controller if velocity estimate is pushing away from upper limit with a minimum magnitude (resultant torque in same direction as well)
+                } else if (_dq_estimate(i) < -_dq_tol && (_limit_flag[i] == MAX_SOFT || _limit_flag[i] == MAX_HARD) && _tau_result(i) < -_tau_tol) {
+                    // accept torque commands from the controller if velocity estimate is pushing away from upper limit with a minimum magnitude
                     _limit_flag[i] = SAFE;
                     _limited_joints(i) = 0;
                 } 
@@ -313,19 +331,28 @@ int main(int argc, char** argv) {
         int cnt = 0;
         for (int i = 0; i < 7; ++i) {
             // overwrite with holding torque (highest level) 
-            if (_limit_flag[i] == MAX) {      
-                kp_scalar = exp(beta * abs(robot_state.q[i] - soft_max_angles(i))) - 1;
-                if (i == 1) {  // exception for joint 2
-                    kp_scalar = exp(1e-2 * beta * abs(robot_state.q[i] - soft_max_angles(i))) - 1;
-                }
-                _tau_unit_limited(cnt) = - kp_scalar * (robot_state.q[i] - soft_max_angles(i)) - kv_scalar * _vel_filtered(i);
+            if (_limit_flag[i] == MIN_SOFT || _limit_flag[i] == MAX_SOFT) {
+                _tau_unit_limited(cnt) = - kv_scalar * 0.5 * _vel_filtered(i);  // smaller kv damping 
                 cnt++;
-            } else if (_limit_flag[i] == MIN) {
-                kp_scalar = exp(beta * abs(robot_state.q[i] - soft_min_angles(i))) - 1;
-                if (i == 1) {
-                    kp_scalar = exp(1e-2 * beta * abs(robot_state.q[i] - soft_max_angles(i))) - 1;
+            } else if (_limit_flag[i] == MAX_HARD) {      
+                kp_scalar = exp(beta * abs(robot_state.q[i] - hard_max_angles(i))) - 1;
+                // gain tuning for specific joints 
+                if (i == 1) {  
+                    kp_scalar = exp(1e0 * beta * abs(robot_state.q[i] - hard_max_angles(i))) - 1;
+                } else if (i == 3) {
+                    kp_scalar = exp(1e0 * beta * abs(robot_state.q[i] - hard_max_angles(i))) - 1;
                 }
-                _tau_unit_limited(cnt) = - kp_scalar * (robot_state.q[i] - soft_min_angles(i)) - kv_scalar * _vel_filtered(i);
+                _tau_unit_limited(cnt) = - kp_scalar * (robot_state.q[i] - hard_max_angles(i)) - kv_scalar * _vel_filtered(i);
+                cnt++;
+            } else if (_limit_flag[i] == MIN_HARD) {
+                kp_scalar = exp(beta * abs(robot_state.q[i] - hard_min_angles(i))) - 1;
+                // gain tuning for specific joints 
+                if (i == 1) {
+                    kp_scalar = exp(1e0 * beta * abs(robot_state.q[i] - hard_min_angles(i))) - 1;
+                } else if (i == 3) {
+                    kp_scalar = exp(1e0 * beta * abs(robot_state.q[i] - hard_min_angles(i))) - 1;
+                }
+                _tau_unit_limited(cnt) = - kp_scalar * (robot_state.q[i] - hard_min_angles(i)) - kv_scalar * _vel_filtered(i);
                 cnt++;
             }
         }
