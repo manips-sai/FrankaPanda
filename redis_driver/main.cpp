@@ -190,6 +190,10 @@ int main(int argc, char** argv) {
     _filter_out.setDimension(7);
     _filter_out.setCutoffFrequency(0.1);  // velocity sensor output (not typically used)
 
+    // limit options
+    bool _pos_limit_opt = true;
+    bool _vel_limit_opt = true;
+
     // setup joint limit avoidance 
     std::vector<int> _pos_limit_flag {7, SAFE};
     Eigen::VectorXd _ddq = Eigen::VectorXd::Zero(7);
@@ -243,11 +247,11 @@ int main(int argc, char** argv) {
         hard_max_angles(i) = hard_sf * joint_position_max_default[i];
         soft_joint_velocity_limits(i) = soft_sf * joint_velocity_limits_default[i];
 
-        // debug
-        if (i == 3) {
-            joint_velocity_limits[i] *= 0.5;
-            soft_joint_velocity_limits(i) *= 0.5;
-        }
+        // // debug
+        // if (i == 3) {
+        //     joint_velocity_limits[i] *= 0.5;
+        //     soft_joint_velocity_limits(i) *= 0.5;
+        // }
     }
 
     // for (int i = 0; i < 7; ++i) {
@@ -329,133 +333,139 @@ int main(int argc, char** argv) {
         // reset containers
         _limited_joints.setZero();  // used to form the constraint jacobian 
 
-        // joint velocity limit avoidance (lower priority than joint position limit; _tau_unit_limited will be overwritten)  
-        for (int i = 0; i < 7; ++i) {
-            // double next_dq = _vel_filtered(i) + _ddq(i) * (1. / 1000);
-            double next_dq = robot_state.dq[i] + _ddq(i) * (1. / 1000) * _vel_dt_sf;
-            if (next_dq > soft_joint_velocity_limits[i]) {
-                _vel_limit_flag[i] = MAX_VEL;
-                _limited_joints(i) = 1;   
-            } else if (next_dq < -soft_joint_velocity_limits[i]) {
-                _vel_limit_flag[i] = MIN_VEL;                
-                _limited_joints(i) = 1;
-            } else {
-                _vel_limit_flag[i] = SAFE;
-            }
-        } 
-
-        // joint position limit avoidance 
-        // _limited_joints.setZero();
-        _delta_q = _vel_filtered * (1. / 1000);  // uses current velocity estimate
-        for (int i = 0; i < 7; ++i) {
-            double next_q = robot_state.q[i] + _delta_q(i);
-            if (next_q > soft_min_angles(i) && next_q < soft_max_angles(i)) {
-                _pos_limit_flag[i] = SAFE;
-                // _dq_estimate(i) = 0;  // if using velocity accumulation method 
-            } else if (next_q < hard_min_angles(i)) {
-                _pos_limit_flag[i] = MIN_HARD;
-                _limited_joints(i) = 1;
-            } else if (next_q < soft_min_angles(i)) {
-                _pos_limit_flag[i] = MIN_SOFT;
-                _limited_joints(i) = 1;
-            } else if (next_q > hard_max_angles(i)) {
-                _pos_limit_flag[i] = MAX_HARD;
-                _limited_joints(i) = 1;
-            } else if (next_q > soft_max_angles(i)) {
-                _pos_limit_flag[i] = MAX_SOFT;   
-                _limited_joints(i) = 1;       
-            }
+        if (_vel_limit_opt) {
+            // joint velocity limit avoidance (lower priority than joint position limit; _tau_unit_limited will be overwritten)  
+            for (int i = 0; i < 7; ++i) {
+                // double next_dq = _vel_filtered(i) + _ddq(i) * (1. / 1000);
+                double next_dq = robot_state.dq[i] + _ddq(i) * (1. / 1000) * _vel_dt_sf;
+                if (next_dq > soft_joint_velocity_limits[i]) {
+                    _vel_limit_flag[i] = MAX_VEL;
+                    _limited_joints(i) = 1;   
+                } else if (next_dq < -soft_joint_velocity_limits[i]) {
+                    _vel_limit_flag[i] = MIN_VEL;                
+                    _limited_joints(i) = 1;
+                } else {
+                    _vel_limit_flag[i] = SAFE;
+                }
+            } 
         }
 
-        // update velocity estimate buffer and conditional acceptance of input torque 
-        for (int i = 0; i < 7; ++i) {
-            if (_pos_limit_flag[i] != SAFE) {
-                // _dq_estimate(i) += _ddq(i) * (1. / 1000);
-                _dq_estimate(i) = _vel_filtered(i) + _ddq(i) * (1. / 1000);
-                // _dq_estimate(i) = _vel_filtered(i);
-                if (_dq_estimate(i) > _dq_tol && (_pos_limit_flag[i] == MIN_SOFT || _pos_limit_flag[i] == MIN_HARD) && _tau_result(i) > _tau_tol) {
-                    // accept torque commands from the controller if velocity estimate is pushing away from lower limit with a minimum magnitude AND torque is in the same direction above a magnitude
+        if (_pos_limit_opt) {
+            // joint position limit avoidance 
+            // _limited_joints.setZero();
+            _delta_q = _vel_filtered * (1. / 1000);  // uses current velocity estimate
+            for (int i = 0; i < 7; ++i) {
+                double next_q = robot_state.q[i] + _delta_q(i);
+                if (next_q > soft_min_angles(i) && next_q < soft_max_angles(i)) {
                     _pos_limit_flag[i] = SAFE;
-                    if (_vel_limit_flag[i] == SAFE) {  // reset if joint velocity is safe
-                        _limited_joints(i) = 0; 
-                    }
-                } else if (_dq_estimate(i) < -_dq_tol && (_pos_limit_flag[i] == MAX_SOFT || _pos_limit_flag[i] == MAX_HARD) && _tau_result(i) < -_tau_tol) {
-                    // accept torque commands from the controller if velocity estimate is pushing away from upper limit with a minimum magnitude AND torque is in the same direction above a magnitude 
-                    _pos_limit_flag[i] = SAFE;
-                    if (_vel_limit_flag[i] == SAFE) {  // reset if joint velocity is safe 
-                        _limited_joints(i) = 0;  
-                    }
-                } 
+                    // _dq_estimate(i) = 0;  // if using velocity accumulation method 
+                } else if (next_q < hard_min_angles(i)) {
+                    _pos_limit_flag[i] = MIN_HARD;
+                    _limited_joints(i) = 1;
+                } else if (next_q < soft_min_angles(i)) {
+                    _pos_limit_flag[i] = MIN_SOFT;
+                    _limited_joints(i) = 1;
+                } else if (next_q > hard_max_angles(i)) {
+                    _pos_limit_flag[i] = MAX_HARD;
+                    _limited_joints(i) = 1;
+                } else if (next_q > soft_max_angles(i)) {
+                    _pos_limit_flag[i] = MAX_SOFT;   
+                    _limited_joints(i) = 1;       
+                }
+            }
+
+            // update velocity estimate buffer and conditional acceptance of input torque 
+            for (int i = 0; i < 7; ++i) {
+                if (_pos_limit_flag[i] != SAFE) {
+                    // _dq_estimate(i) += _ddq(i) * (1. / 1000);
+                    _dq_estimate(i) = _vel_filtered(i) + _ddq(i) * (1. / 1000);
+                    // _dq_estimate(i) = _vel_filtered(i);
+                    if (_dq_estimate(i) > _dq_tol && (_pos_limit_flag[i] == MIN_SOFT || _pos_limit_flag[i] == MIN_HARD) && _tau_result(i) > _tau_tol) {
+                        // accept torque commands from the controller if velocity estimate is pushing away from lower limit with a minimum magnitude AND torque is in the same direction above a magnitude
+                        _pos_limit_flag[i] = SAFE;
+                        if (_vel_limit_flag[i] == SAFE) {  // reset if joint velocity is safe
+                            _limited_joints(i) = 0; 
+                        }
+                    } else if (_dq_estimate(i) < -_dq_tol && (_pos_limit_flag[i] == MAX_SOFT || _pos_limit_flag[i] == MAX_HARD) && _tau_result(i) < -_tau_tol) {
+                        // accept torque commands from the controller if velocity estimate is pushing away from upper limit with a minimum magnitude AND torque is in the same direction above a magnitude 
+                        _pos_limit_flag[i] = SAFE;
+                        if (_vel_limit_flag[i] == SAFE) {  // reset if joint velocity is safe 
+                            _limited_joints(i) = 0;  
+                        }
+                    } 
+                }
             }
         }
 
         int n_limited_joints = _limited_joints.sum();
-        _tau_unit_limited = Eigen::VectorXd::Zero(n_limited_joints);
-        int cnt = 0;
-        for (int i = 0; i < 7; ++i) {
-            // velocity 
-            double next_q = robot_state.q[i] + _delta_q(i) * (1. / 1000);   
-            if (_vel_limit_flag[i] == MAX_VEL) {
-                std::cout << "Max vel saturation \n";
-                // _tau_unit_limited(cnt) = - kv_vel * (_vel_filtered(i) - soft_joint_velocity_limits[i]);
-                _tau_unit_limited(cnt) = - kv_vel * (robot_state.dq[i] - _vel_limit_sf * soft_joint_velocity_limits[i]);
-                // double max_next_q = robot_state.q[i] + _vel_limit_sf * soft_joint_velocity_limits[i] * (1. / 1000);
-                // _tau_unit_limited(cnt) = - kp_vel * (robot_state.q[i] - max_next_q) - kv_vel * (robot_state.dq[i] - soft_joint_velocity_limits[i]);
-                // _tau_unit_limited(cnt) = - kp_vel * (robot_state.q[i] - max_next_q) - kv_vel * robot_state.dq[i];
-                // _tau_unit_limited(cnt) = - kv_vel * _vel_filtered(i);  // damp to zero
-            } else if (_vel_limit_flag[i] == MIN_VEL) {
-                std::cout << "Min vel saturation \n";
-                // _tau_unit_limited(cnt) = - kv_vel * (_vel_filtered(i) - (-soft_joint_velocity_limits[i]));
-                _tau_unit_limited(cnt) = - kv_vel * (robot_state.dq[i] - _vel_limit_sf * (-soft_joint_velocity_limits[i]));
-                // double max_next_q = robot_state.q[i] - _vel_limit_sf * soft_joint_velocity_limits[i] * (1. / 1000);
-                // _tau_unit_limited(cnt) = - kp_vel * (robot_state.q[i] - max_next_q) - kv_vel * (robot_state.dq[i] - (-soft_joint_velocity_limits[i]));
-                // _tau_unit_limited(cnt) = - kp_vel * (robot_state.q[i] - max_next_q) - kv_vel * robot_state.dq[i];
-                // _tau_unit_limited(cnt) = - kv_vel * _vel_filtered(i);  // damp to zero 
+        if (n_limited_joints > 0) {
+            _tau_unit_limited = Eigen::VectorXd::Zero(n_limited_joints);
+            int cnt = 0;
+            for (int i = 0; i < 7; ++i) {
+                // velocity 
+                double next_q = robot_state.q[i] + _delta_q(i) * (1. / 1000);   
+                if (_vel_limit_flag[i] == MAX_VEL) {
+                    std::cout << "Max vel saturation \n";
+                    // _tau_unit_limited(cnt) = - kv_vel * (_vel_filtered(i) - soft_joint_velocity_limits[i]);
+                    _tau_unit_limited(cnt) = - kv_vel * (robot_state.dq[i] - _vel_limit_sf * soft_joint_velocity_limits[i]);
+                    // double max_next_q = robot_state.q[i] + _vel_limit_sf * soft_joint_velocity_limits[i] * (1. / 1000);
+                    // _tau_unit_limited(cnt) = - kp_vel * (robot_state.q[i] - max_next_q) - kv_vel * (robot_state.dq[i] - soft_joint_velocity_limits[i]);
+                    // _tau_unit_limited(cnt) = - kp_vel * (robot_state.q[i] - max_next_q) - kv_vel * robot_state.dq[i];
+                    // _tau_unit_limited(cnt) = - kv_vel * _vel_filtered(i);  // damp to zero
+                } else if (_vel_limit_flag[i] == MIN_VEL) {
+                    std::cout << "Min vel saturation \n";
+                    // _tau_unit_limited(cnt) = - kv_vel * (_vel_filtered(i) - (-soft_joint_velocity_limits[i]));
+                    _tau_unit_limited(cnt) = - kv_vel * (robot_state.dq[i] - _vel_limit_sf * (-soft_joint_velocity_limits[i]));
+                    // double max_next_q = robot_state.q[i] - _vel_limit_sf * soft_joint_velocity_limits[i] * (1. / 1000);
+                    // _tau_unit_limited(cnt) = - kp_vel * (robot_state.q[i] - max_next_q) - kv_vel * (robot_state.dq[i] - (-soft_joint_velocity_limits[i]));
+                    // _tau_unit_limited(cnt) = - kp_vel * (robot_state.q[i] - max_next_q) - kv_vel * robot_state.dq[i];
+                    // _tau_unit_limited(cnt) = - kv_vel * _vel_filtered(i);  // damp to zero 
+                }
+
+                // position
+                if (_pos_limit_flag[i] == MIN_SOFT || _pos_limit_flag[i] == MAX_SOFT) {
+                    _tau_unit_limited(cnt) = - kv_scalar * 0.5 * _vel_filtered(i);  // smaller kv damping 
+                    cnt++;
+                } else if (_pos_limit_flag[i] == MAX_HARD) {      
+                    kp_scalar = exp(beta * abs(robot_state.q[i] - hard_max_angles(i))) - 1;
+                    // gain tuning for specific joints 
+                    if (i == 1) {  
+                        kp_scalar = exp(1e0 * beta * abs(robot_state.q[i] - hard_max_angles(i))) - 1;
+                    } else if (i == 3) {
+                        kp_scalar = exp(1e0 * beta * abs(robot_state.q[i] - hard_max_angles(i))) - 1;
+                    }
+                    _tau_unit_limited(cnt) = - kp_scalar * (robot_state.q[i] - hard_max_angles(i)) - kv_scalar * _vel_filtered(i);
+                    cnt++;
+                } else if (_pos_limit_flag[i] == MIN_HARD) {
+                    kp_scalar = exp(beta * abs(robot_state.q[i] - hard_min_angles(i))) - 1;
+                    // gain tuning for specific joints 
+                    if (i == 1) {
+                        kp_scalar = exp(1e0 * beta * abs(robot_state.q[i] - hard_min_angles(i))) - 1;
+                    } else if (i == 3) {
+                        kp_scalar = exp(1e0 * beta * abs(robot_state.q[i] - hard_min_angles(i))) - 1;
+                    }
+                    _tau_unit_limited(cnt) = - kp_scalar * (robot_state.q[i] - hard_min_angles(i)) - kv_scalar * _vel_filtered(i);
+                    cnt++;
+                } else if (_vel_limit_flag[i] != SAFE) {  // increment counter for velocity limit case 
+                    cnt++;
+                }
             }
 
-            // position
-            if (_pos_limit_flag[i] == MIN_SOFT || _pos_limit_flag[i] == MAX_SOFT) {
-                _tau_unit_limited(cnt) = - kv_scalar * 0.5 * _vel_filtered(i);  // smaller kv damping 
-                cnt++;
-            } else if (_pos_limit_flag[i] == MAX_HARD) {      
-                kp_scalar = exp(beta * abs(robot_state.q[i] - hard_max_angles(i))) - 1;
-                // gain tuning for specific joints 
-                if (i == 1) {  
-                    kp_scalar = exp(1e0 * beta * abs(robot_state.q[i] - hard_max_angles(i))) - 1;
-                } else if (i == 3) {
-                    kp_scalar = exp(1e0 * beta * abs(robot_state.q[i] - hard_max_angles(i))) - 1;
+            // compute revised torques 
+            _J_s = Eigen::MatrixXd::Zero(n_limited_joints, 7);
+            cnt = 0;
+            for (int i = 0; i < 7; ++i) {
+                if (_limited_joints(i)) {
+                    _J_s(cnt, i) = 1;
+                    cnt++;
                 }
-                _tau_unit_limited(cnt) = - kp_scalar * (robot_state.q[i] - hard_max_angles(i)) - kv_scalar * _vel_filtered(i);
-                cnt++;
-            } else if (_pos_limit_flag[i] == MIN_HARD) {
-                kp_scalar = exp(beta * abs(robot_state.q[i] - hard_min_angles(i))) - 1;
-                // gain tuning for specific joints 
-                if (i == 1) {
-                    kp_scalar = exp(1e0 * beta * abs(robot_state.q[i] - hard_min_angles(i))) - 1;
-                } else if (i == 3) {
-                    kp_scalar = exp(1e0 * beta * abs(robot_state.q[i] - hard_min_angles(i))) - 1;
-                }
-                _tau_unit_limited(cnt) = - kp_scalar * (robot_state.q[i] - hard_min_angles(i)) - kv_scalar * _vel_filtered(i);
-                cnt++;
-            } else if (_vel_limit_flag[i] != SAFE) {  // increment counter for velocity limit case 
-                cnt++;
             }
-        }
-
-        // compute revised torques 
-        _J_s = Eigen::MatrixXd::Zero(n_limited_joints, 7);
-        cnt = 0;
-        for (int i = 0; i < 7; ++i) {
-            if (_limited_joints(i)) {
-                _J_s(cnt, i) = 1;
-                cnt++;
+            _Lambda_s = (_J_s * MassMatrixInverse * _J_s.transpose()).llt().solve(Eigen::MatrixXd::Identity(n_limited_joints, n_limited_joints));
+            _N_s = Eigen::MatrixXd::Identity(7, 7) - MassMatrixInverse * _J_s.transpose() * _Lambda_s * _J_s;  // I - J_bar * J
+            _tau = _J_s.transpose() * _Lambda_s * _tau_unit_limited + _N_s.transpose() * _tau;  // revised torque command using nullspace projection (not including coriolis)
+            for (int i = 0; i < 7; ++i) {
+                tau_cmd_array[i] = _tau(i);
             }
-        }
-        _Lambda_s = (_J_s * MassMatrixInverse * _J_s.transpose()).llt().solve(Eigen::MatrixXd::Identity(n_limited_joints, n_limited_joints));
-        _N_s = Eigen::MatrixXd::Identity(7, 7) - MassMatrixInverse * _J_s.transpose() * _Lambda_s * _J_s;  // I - J_bar * J
-        _tau = _J_s.transpose() * _Lambda_s * _tau_unit_limited + _N_s.transpose() * _tau;  // revised torque command using nullspace projection (not including coriolis)
-        for (int i = 0; i < 7; ++i) {
-            tau_cmd_array[i] = _tau(i);
         }
 
         // safety checks
