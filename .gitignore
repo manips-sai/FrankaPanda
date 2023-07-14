@@ -30,3 +30,7 @@
 *.exe
 *.out
 *.app
+
+redis_driver/build/*
+libfranka/*
+.vscode/*
