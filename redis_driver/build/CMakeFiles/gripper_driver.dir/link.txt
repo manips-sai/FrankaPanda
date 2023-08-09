@@ -1,1 +1,1 @@
-/usr/bin/c++  -g  -rdynamic CMakeFiles/gripper_driver.dir/gripper.cpp.o  -o gripper_driver  -Wl,-rpath,/home/clyde/sai2/drivers/FrankaPanda/libfranka/build /home/clyde/sai2/drivers/FrankaPanda/libfranka/build/libfranka.so.0.5.0 -lhiredis -ljsoncpp -lrt 
+/usr/bin/c++  -O3 -DNDEBUG  -rdynamic CMakeFiles/gripper_driver.dir/gripper.cpp.o  -o gripper_driver  -Wl,-rpath,/home/clyde/sai2/drivers/FrankaPanda/libfranka/build /home/clyde/sai2/drivers/FrankaPanda/libfranka/build/libfranka.so.0.5.0 -lhiredis -ljsoncpp -lrt 
