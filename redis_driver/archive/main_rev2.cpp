@@ -249,10 +249,10 @@ int main(int argc, char** argv) {
 
     for (int i = 0; i < 7; ++i) {
         soft_min_angles(i) = joint_position_min[i] + 8 * angle_tol;
-        hard_min_angles(i) = joint_position_min[i] + 5 * angle_tol;
+        hard_min_angles(i) = joint_position_min[i] + 6 * angle_tol;
         soft_max_angles(i) = joint_position_max[i] - 8 * angle_tol;
-        hard_max_angles(i) = joint_position_max[i] - 5 * angle_tol;
-        soft_joint_velocity_limits(i) = joint_velocity_limits[i] - 25 * vel_tol;
+        hard_max_angles(i) = joint_position_max[i] - 6 * angle_tol;
+        soft_joint_velocity_limits(i) = joint_velocity_limits[i] - 20 * vel_tol;
         hard_joint_velocity_limits(i) = joint_velocity_limits[i] - 10 * vel_tol;
     }
 
@@ -316,19 +316,19 @@ int main(int argc, char** argv) {
         if (_pos_limit_opt) {          
             for (int i = 0; i < 7; ++i) {
                 // double next_q = robot_state.q[i] + robot_state.dq[i] * dt_buffer + 0.5 * _ddq(i) * dt_buffer * dt_buffer;  // integrate forward position based on acceleration 
-                double curr_q = robot_state.q[i];
-                if (curr_q > soft_min_angles(i) && curr_q < soft_max_angles(i)) {
+                double next_q = robot_state.q[i];
+                if (next_q > soft_min_angles(i) && next_q < soft_max_angles(i)) {
                     _pos_limit_flag[i] = SAFE;
-                } else if (curr_q < hard_min_angles(i)) {
+                } else if (next_q < hard_min_angles(i)) {
                     _pos_limit_flag[i] = MIN_HARD;
                     _limited_joints(i) = 1;
-                } else if (curr_q < soft_min_angles(i)) {
+                } else if (next_q < soft_min_angles(i)) {
                     _pos_limit_flag[i] = MIN_SOFT;
                     _limited_joints(i) = 1;
-                } else if (curr_q > hard_max_angles(i)) {
+                } else if (next_q > hard_max_angles(i)) {
                     _pos_limit_flag[i] = MAX_HARD;
                     _limited_joints(i) = 1;
-                } else if (curr_q > soft_max_angles(i)) {
+                } else if (next_q > soft_max_angles(i)) {
                     _pos_limit_flag[i] = MAX_SOFT;   
                     _limited_joints(i) = 1;       
                 }
@@ -385,119 +385,101 @@ int main(int argc, char** argv) {
                     /*
                         Ramping kv damping proportional to violation difference (added to command torques)
                     */
-                    if (robot_state.dq[i] < 0) {
-                    // if (_tau(i) < 0) {
-                        double kv = kv_safety[i] * abs((robot_state.q[i] - soft_min_angles[i]) / (hard_min_angles[i] - soft_min_angles[i]));
+                //    if (robot_state.dq[i] < 0) {
+                    if (_tau(i) < 0) {
+                        double kv = kv_safety[i] * (robot_state.q[i] - soft_min_angles[i]) / (hard_min_angles[i] - soft_min_angles[i]);
                         _tau_limited(i) = _tau(i) - kv * robot_state.dq[i];
                     }
+                    // _alpha_pos = abs(getBlendingCoeff(robot_state.q[i], soft_min_angles[i], hard_min_angles[i]));
+                    // double dist = (robot_state.q[i] - soft_min_angles[i]) / (hard_min_angles[i] - soft_min_angles[i]);
+                    // double tau_hold = joint_torques_limits_default[i] * dist * dist - 1 * kv_safety[i] * robot_state.dq[i];
+                    // double tau_hold = joint_torques_limits_default[i] * dist * dist + kv_safety[i] * (robot_state.q[i] - soft_max_angles[i]) / (hard_max_angles[i] - soft_max_angles[i]);
+                    // _tau_limited(i) = (1 - _alpha_pos) * _tau(i) + _alpha_pos * tau_hold;
                 } else if (_pos_limit_flag[i] == MAX_SOFT) {
                     /*
                         Ramping kv damping proportional to violation difference 
                     */
-                    if (robot_state.dq[i] > 0) {
-                    // if (_tau(i) > 0) {
-                        double kv = kv_safety[i] * abs((robot_state.q[i] - soft_max_angles[i]) / (hard_max_angles[i] - soft_max_angles[i]));
+                    // if (robot_state.dq[i] > 0) {
+                    if (_tau(i) > 0) {
+                        double kv = kv_safety[i] * (robot_state.q[i] - soft_max_angles[i]) / (hard_max_angles[i] - soft_max_angles[i]);
                         _tau_limited(i) = _tau(i) - kv * robot_state.dq[i];
                     }
+                    // _alpha_pos = abs(getBlendingCoeff(robot_state.q[i], hard_max_angles[i], joint_positions_max[i]));
+                    // double dist = (robot_state.q[i] - hard_max_angles[i]) / (hard_max_angles[i] - soft_max_angles[i]);
+                    // double tau_hold = - joint_torques_limits_default[i] * dist * dist - 1 * kv_safety[i] * robot_state.dq[i];
+                    // double tau_hold = - joint_torques_limits_default[i] * dist * dist - kv_safety[i] * (robot_state.q[i] - soft_max_angles[i]) / (hard_max_angles[i] - soft_max_angles[i]);
+                    // _tau_limited(i) = (1 - _alpha_pos) * _tau(i) + _alpha_pos * tau_hold;
                 } else if (_pos_limit_flag[i] == MAX_HARD) {      
                     /*
                         Quadratic holding (blending with command torques)
                     */
-                    // if (_tau(i) > 0) {
-                        _alpha_pos = abs(getBlendingCoeff(robot_state.q[i], hard_max_angles[i], joint_position_max[i]));
-                        double dist = (robot_state.q[i] - hard_max_angles[i]) / (joint_position_max[i] - hard_max_angles[i]);
-                        double tau_hold = - joint_torques_limits_default[i] * dist * dist - kv_safety[i] * robot_state.dq[i];
-                        _tau_limited(i) = (1 - _alpha_pos) * _tau(i) + _alpha_pos * tau_hold;
-                    // }
+                    _alpha_pos = abs(getBlendingCoeff(robot_state.q[i], hard_max_angles[i], joint_position_max[i]));
+                    std::cout << "alpha_pos: " << _alpha_pos << "\n";
+                    double dist = (robot_state.q[i] - hard_max_angles[i]) / (joint_position_max[i] - hard_max_angles[i]);
+                    double tau_hold = - joint_torques_limits_default[i] * dist * dist - kv_safety[i] * robot_state.dq[i];
+                    _tau_limited(i) = (1 - _alpha_pos) * _tau(i) + _alpha_pos * tau_hold;
+                    // kp_scalar = exp(beta * abs(robot_state.q[i] - hard_max_angles(i))) - 1;
+                    // _tau_unit_limited(cnt) = - kp_scalar * (robot_state.q[i] - hard_max_angles(i)) - kv_scalar * robot_state.dq[i];
+                    // kp_scalar = 82;
+                    // double dist = (robot_state.q[i] - hard_max_angles(i)) / angle_tol;
+                    // _tau_unit_limited(cnt) = - kp_scalar * dist * dist - kv_safety[i] * robot_state.dq[i];
+                    // _tau_limited(i) = - joint_torques_limits_default[i] * dist * dist - kv_safety[i] * robot_state.dq[i];
+                    // cnt++;
+                    // _tau_limited(i) = - joint_torques_limits_default[i];
                 } else if (_pos_limit_flag[i] == MIN_HARD) {
                     /*
                         Quadratic holding (blending with command torques)
                     */
-                    // if (_tau(i) < 0) {
-                        _alpha_pos = abs(getBlendingCoeff(robot_state.q[i], hard_min_angles[i], joint_position_min[i]));
-                        double dist = (robot_state.q[i] - hard_min_angles[i]) / (joint_position_min[i] - hard_min_angles[i]);
-                        double tau_hold = joint_torques_limits_default[i] * dist * dist - kv_safety[i] * robot_state.dq[i];
-                        _tau_limited(i) = (1 - _alpha_pos) * _tau(i) + _alpha_pos * tau_hold;
-                    // }
+                    _alpha_pos = abs(getBlendingCoeff(robot_state.q[i], hard_min_angles[i], joint_position_min[i]));
+                    std::cout << "alpha_pos: " << _alpha_pos << "\n";
+                    double dist = (robot_state.q[i] - hard_min_angles[i]) / (joint_position_min[i] - hard_min_angles[i]);
+                    double tau_hold = joint_torques_limits_default[i] * dist * dist - kv_safety[i] * robot_state.dq[i];
+                    _tau_limited(i) = (1 - _alpha_pos) * _tau(i) + _alpha_pos * tau_hold;
+                    // kp_scalar = exp(beta * abs(robot_state.q[i] - hard_min_angles(i))) - 1;
+                    // _tau_unit_limited(cnt) = - kp_scalar * (robot_state.q[i] - hard_min_angles(i)) - kv_scalar * robot_state.dq[i];
+                    // kp_scalar = 82;
+                    // double dist = (robot_state.q[i] - hard_min_angles(i)) / angle_tol;
+                    // _tau_unit_limited(cnt) = kp_scalar * dist * dist - kv_scalar * robot_state.dq[i];
+                    // _tau_limited(i) = joint_torques_limits_default[i] * dist * dist - kv_safety[i] * robot_state.dq[i];
+                    // cnt++;
+                    // _tau_limited(i) = joint_torques_limits_default[i];
                 } else if (_vel_limit_flag[i] == MIN_SOFT_VEL) {
-                    /*
-                        If torque is in the limit direction, add damping 
-                    */
-                    if (_tau(i) < 0) {
-                        double kv = kv_safety[i] * abs((robot_state.dq[i] - (- soft_joint_velocity_limits[i])) / (hard_joint_velocity_limits[i] - soft_joint_velocity_limits[i]));
-                        _tau_limited(i) = _tau(i) - kv * (robot_state.dq[i] - (- soft_joint_velocity_limits[i]));    
-                    }
-                    // // _tau_unit_limited(cnt) = - kv_safety[i] * (robot_state.dq[i] - soft_joint_velocity_limits[i]);
-                    // // _tau_limited(i) = - kv_safety[i] * (robot_state.dq[i] - soft_joint_velocity_limits[i]);
-                    // _alpha_vel = abs(getBlendingCoeff(_vel_out_filtered(i), -soft_joint_velocity_limits[i], -hard_joint_velocity_limits[i]));
-                    // // _alpha_vel = 1;
-                    // // double dist = (robot_state.dq[i] - (- soft_joint_velocity_limits[i])) / (hard_joint_velocity_limits[i] - soft_joint_velocity_limits[i]);
-                    // // double tau_hold = kv_safety[i] * dist * dist;
-                    // // double tau_hold = joint_torques_limits_default[i] * dist * dist;
-                    // // double tau_hold = abs(kv_safety[i] * (robot_state.dq[i] - (- soft_joint_velocity_limits[i])));
-                    // // double tau_hold = abs((robot_state.dq[i] - (- soft_joint_velocity_limits[i])));
-                    // double tau_hold = - 0.2 * kv_safety[i] * robot_state.dq[i];
-                    // tau_hold = joint_torques_limits_default[i];
-                    // _tau_limited(i) = (1 - _alpha_vel) * _tau(i) + _alpha_vel * tau_hold;
+                    continue;
+                    // _tau_unit_limited(cnt) = - kv_safety[i] * (robot_state.dq[i] - soft_joint_velocity_limits[i]);
+                    // _tau_limited(i) = - kv_safety[i] * (robot_state.dq[i] - soft_joint_velocity_limits[i]);
+                    _alpha_vel = abs(getBlendingCoeff(_vel_out_filtered(i), -soft_joint_velocity_limits[i], -hard_joint_velocity_limits[i]));
+                    // _alpha_vel = 1;
+                    // double dist = (robot_state.dq[i] - (- soft_joint_velocity_limits[i])) / (hard_joint_velocity_limits[i] - soft_joint_velocity_limits[i]);
+                    // double tau_hold = kv_safety[i] * dist * dist;
+                    // double tau_hold = joint_torques_limits_default[i] * dist * dist;
+                    // double tau_hold = abs(kv_safety[i] * (robot_state.dq[i] - (- soft_joint_velocity_limits[i])));
+                    // double tau_hold = abs((robot_state.dq[i] - (- soft_joint_velocity_limits[i])));
+                    double tau_hold = - 0.2 * kv_safety[i] * robot_state.dq[i];
+                    tau_hold = joint_torques_limits_default[i];
+                    _tau_limited(i) = (1 - _alpha_vel) * _tau(i) + _alpha_vel * tau_hold;
                     // _tau_limited(i) = 0;
                 } else if (_vel_limit_flag[i] == MIN_HARD_VEL) {
-                    /*
-                        Blending with damping
-                    */
-                    if (_tau(i) < 0) {
-                        _alpha_vel = abs(getBlendingCoeff(robot_state.dq[i], -hard_joint_velocity_limits[i], -joint_velocity_limits[i]));
-                        // _alpha_vel = abs(getBlendingCoeff(robot_state.dq[i], 0, -hard_joint_velocity_limits[i]));
-                        double dist = (robot_state.dq[i] - (- hard_joint_velocity_limits[i])) / (joint_velocity_limits[i] - hard_joint_velocity_limits[i]);
-                        // double dist = robot_state.dq[i] / hard_joint_velocity_limits[i];
-                        _tau_limited(i) = (1 - _alpha_vel) * _tau(i) + _alpha_vel * 1 * joint_torques_limits_default[i] * dist * dist - kv_safety[i] * (robot_state.dq[i] - hard_joint_velocity_limits[i]);
-                        // _tau_limited(i) = (1 - _alpha_vel) * _tau(i) + _alpha_vel * kv_safety[i] * (robot_state.dq[i] - (-hard_joint_velocity_limits[i]));
-                        // _tau_limited(i) = (1 - _alpha_vel) * _tau(i) + _alpha_vel * joint_torques_limits_default[i] * dist * dist - kv_safety[i] * robot_state.dq[i];
-                        // _tau_limited(i) = 0.5 * joint_torques_limits_default[i] * dist * dist - kv_safety[i] * (robot_state.dq[i] - (-soft_joint_velocity_limits[i]));
-                        // _tau_limited(i) = - kv_safety[i] * (robot_state.dq[i] - (-soft_joint_velocity_limits[i]));
-                    }
-
-                    // _tau_limited(i) = - kv_safety[i] * (robot_state.dq[i] - soft_joint_velocity_limits[i]);
-                    // // _tau_limited(i) = - kv_safety[i] * (robot_state.dq[i] - (- soft_joint_velocity_limits[i]));
-                    // _tau_limited(i) = joint_torques_limits_default[i];
-                    // // _tau_limited(i) = 0;m
-                    // // _tau_limited(i) = - 0.2 * kv_safety[i] * robot_state.dq[i];
+                    continue;
+                    // _tau_limited(i) = - kv_safety[i] * (robot_state.dq[i] - (- soft_joint_velocity_limits[i]));
+                    _tau_limited(i) = joint_torques_limits_default[i];
+                    // _tau_limited(i) = 0;m
+                    // _tau_limited(i) = - 0.2 * kv_safety[i] * robot_state.dq[i];
                 } else if (_vel_limit_flag[i] == MAX_SOFT_VEL) {
-                    /*
-                        If torque is in the limit direction, add damping 
-                    */
-                    if (_tau(i) > 0) {
-                        double kv = kv_safety[i] * (robot_state.dq[i] - soft_joint_velocity_limits[i]) / (hard_joint_velocity_limits[i] - soft_joint_velocity_limits[i]);
-                        _tau_limited(i) = 1 * _tau(i) - kv * (robot_state.dq[i] - soft_joint_velocity_limits[i]);    
-                    }
-                    // _alpha_vel = getBlendingCoeff(_vel_out_filtered(i), soft_joint_velocity_limits[i], hard_joint_velocity_limits[i]);
-                    // // _alpha_vel = 1;
-                    // // double dist = (robot_state.dq[i] - soft_joint_velocity_limits[i]) / (hard_joint_velocity_limits[i] - soft_joint_velocity_limits[i]);
-                    // // double tau_hold = - joint_torques_limits_default[i] * dist * dist;
-                    // double tau_hold = - 0.2 * kv_safety[i] * robot_state.dq[i];
-                    // // double tau_hold = - kv_safety[i] * (robot_state.dq[i] - soft_joint_velocity_limits[i]);
-                    // tau_hold = -joint_torques_limits_default[i];
-                    // _tau_limited(i) = (1 - _alpha_vel) * _tau(i) + _alpha_vel * tau_hold;
-                    // // _tau_limited(i) = 0;
+                    continue;
+                    _alpha_vel = getBlendingCoeff(_vel_out_filtered(i), soft_joint_velocity_limits[i], hard_joint_velocity_limits[i]);
+                    // _alpha_vel = 1;
+                    // double dist = (robot_state.dq[i] - soft_joint_velocity_limits[i]) / (hard_joint_velocity_limits[i] - soft_joint_velocity_limits[i]);
+                    // double tau_hold = - joint_torques_limits_default[i] * dist * dist;
+                    double tau_hold = - 0.2 * kv_safety[i] * robot_state.dq[i];
+                    // double tau_hold = - kv_safety[i] * (robot_state.dq[i] - soft_joint_velocity_limits[i]);
+                    tau_hold = -joint_torques_limits_default[i];
+                    _tau_limited(i) = (1 - _alpha_vel) * _tau(i) + _alpha_vel * tau_hold;
+                    // _tau_limited(i) = 0;
                 } else if (_vel_limit_flag[i] == MAX_HARD_VEL) {
-                    /*
-                        Blending with damping
-                    */
-                    if (_tau(i) > 0) {
-                        _alpha_vel = abs(getBlendingCoeff(robot_state.dq[i], hard_joint_velocity_limits[i], joint_velocity_limits[i]));
-                        // _alpha_vel = abs(getBlendingCoeff(robot_state.dq[i], 0, hard_joint_velocity_limits[i]));
-                        double dist = (robot_state.dq[i] - hard_joint_velocity_limits[i]) / (joint_velocity_limits[i] - hard_joint_velocity_limits[i]);
-                        // double dist = robot_state.dq[i] / hard_joint_velocity_limits[i];
-                        _tau_limited(i) = (1 - _alpha_vel) * _tau(i) - _alpha_vel * 1 * joint_torques_limits_default[i] * dist * dist - kv_safety[i] * (robot_state.dq[i] - hard_joint_velocity_limits[i]);
-                        // _tau_limited(i) = (1 - _alpha_vel) * _tau(i) - _alpha_vel * kv_safety[i] * (robot_state.dq[i] - hard_joint_velocity_limits[i]);
-                        // _tau_limited(i) = - kv_safety[i] * robot_state.dq[i];
-                        // _tau_limited(i) = - 0.5 * joint_torques_limits_default[i] * dist * dist - kv_safety[i] * (robot_state.dq[i] - soft_joint_velocity_limits[i]);
-                    }
-
-                    // continue;
-                    // _tau_limited(i) = - kv_safety[i] * (robot_state.dq[i] - soft_joint_velocity_limits[i]);
+                    continue;
                     // _tau_limited(i) = - kv_safety[i] * (robot_state.dq[i] - soft_joint_velocity_limits[i]);
                     // _tau_limited(i) = - 0.2 * kv_safety[i] * robot_state.dq[i];
-                    // _tau_limited(i) = -joint_torques_limits_default[i];
+                    _tau_limited(i) = -joint_torques_limits_default[i];
                     // _tau_limited(i) = 0;
                 }
 

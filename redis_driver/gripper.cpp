@@ -11,9 +11,12 @@
 #include <franka/gripper.h>
 
 #include "RedisClient.h"
+#include <thread>
+#include <atomic>
+#include <mutex>
 
 // - gripper
-std::string GRIPPER_MODE_KEY; // m for move and g for graps
+std::string GRIPPER_MODE_KEY; // m for move and g for grasp
 std::string GRIPPER_MAX_WIDTH_KEY;
 std::string GRIPPER_CURRENT_WIDTH_KEY;
 std::string GRIPPER_DESIRED_WIDTH_KEY;
@@ -25,6 +28,31 @@ bool runloop = false;
 void sighandler(int){runloop = false;}
 unsigned long long counter = 0;
 
+std::atomic<int> begin_move_flag(1);
+// std::mutex mtx;
+// bool flag_blocking_call_executed = false;
+auto start_time = std::chrono::high_resolution_clock::now();
+void stopGripper(franka::Gripper& gripper) {
+  while(1) {
+    // std::lock_guard<std::mutex> lock(mtx);
+    int local_begin_move_flag = begin_move_flag.load();
+    std::cout << local_begin_move_flag << "\n";
+    if (local_begin_move_flag) {
+      // std::cout << "reset start time\n";
+      start_time = std::chrono::high_resolution_clock::now();
+      begin_move_flag.store(0);
+    }
+    auto end_time = std::chrono::high_resolution_clock::now();  
+    std::chrono::duration<double> duration = end_time - start_time;
+    double elapsed_time = duration.count();
+    std::cout << elapsed_time << "\n";
+    if (elapsed_time > 5) {
+      std::cout << "stopped gripper\n";
+      gripper.stop(); 
+      // begin_move_flag.store(0);
+    }
+  }
+}
 
 int main(int argc, char** argv) {
 
@@ -91,6 +119,13 @@ int main(int argc, char** argv) {
     // connect to gripper
     franka::Gripper gripper(robot_ip);
 
+    // setup stop thread 
+    begin_move_flag.store(0);
+    // std::thread stopGripperThread(stopGripper, std::ref(gripper));
+
+    // create timer
+    auto start_time = std::chrono::high_resolution_clock::now();
+
     // home the gripper
     // gripper.homing();
 
@@ -100,14 +135,18 @@ int main(int argc, char** argv) {
     redis_client.setCommandIs(GRIPPER_MODE_KEY, gripper_mode);
 
     // gripper_desired_width = 0.5*gripper_max_width;
-    gripper_desired_width = gripper_state.width;
-    gripper_desired_speed = 0.07;
-    gripper_desired_force = 5.0;
+    // gripper_desired_width = gripper_state.width;
+    gripper_desired_width = gripper_state.max_width;
+    // gripper_desired_speed = 0.07;
+    gripper_desired_speed = 0.1;
+    gripper_desired_force = 70.0;
     gripper.move(gripper_desired_width, gripper_desired_speed);
 
     redis_client.setCommandIs(GRIPPER_DESIRED_WIDTH_KEY, std::to_string(gripper_desired_width));
     redis_client.setCommandIs(GRIPPER_DESIRED_SPEED_KEY, std::to_string(gripper_desired_speed));
     redis_client.setCommandIs(GRIPPER_DESIRED_FORCE_KEY, std::to_string(gripper_desired_force));
+
+    int failed_flag = 0;
 
     runloop = true;
     while(runloop)
@@ -156,16 +195,50 @@ int main(int argc, char** argv) {
         gripper_mode = gripper_mode_tmp;
       }
 
-      if(flag_command_changed)
+      if(flag_command_changed || failed_flag)
+      // if(flag_command_changed)
       {
+        // gripper.stop();
         if(gripper_mode == "m")
         {
-          gripper.move(gripper_desired_width, gripper_desired_speed);
+          // begin_move_flag.store(1);
+          bool move_successful = gripper.move(gripper_desired_width, gripper_desired_speed);   
+          if (!move_successful) {
+            failed_flag = 1;
+            gripper_desired_width = gripper_state.width + 0.01;
+            redis_client.setCommandIs(GRIPPER_DESIRED_WIDTH_KEY, std::to_string(gripper_desired_width));
+          } else {
+            failed_flag = 0;
+          }
         }
         else if(gripper_mode == "g")
         {
+          // try {
           bool grasp_successful = gripper.grasp(0.0, gripper_desired_speed, gripper_desired_force, 1.0, 1.0);
+            // begin_move_flag.store(1);
+            // bool grasp_successful = gripper.grasp(gripper_desired_width, gripper_desired_speed, gripper_desired_force, 1.0, 1.0);
+            // bool grasp_successful = gripper.grasp(0, gripper_desired_speed, gripper_desired_force, 0, 0);
+          std::cout << "grasp status: " << grasp_successful << "\n";
+          if (!grasp_successful) {
+            failed_flag = 1;
+          } else {
+            failed_flag = 0;
+          }
+          // } catch(...) {
+            // std::cout << "catch\n";
+            // failed_flag = 1;  
+            // if (!grasp_successful) {
+            //   gripper_desired_width = gripper_state.width + 0.01;
+            //   failed_flag = 1;
+            //   gripper.grasp(0.0, gripper_desired_speed, gripper_desired_force, 1.0, 1.0);
+            // } else {
+            //   begin_move_flag.store(0);
+            //   failed_flag = 0;
+            // }
+          // }
           // std::cout << "grasp succesful : " << grasp_successful << "  force : " << gripper_desired_force << std::endl;
+          // std::lock_guard<std::mutex> lock(mtx);
+          // flag_blocking_call_executed = true;                    
         }
         else
         {
@@ -173,6 +246,8 @@ int main(int argc, char** argv) {
         }
         flag_command_changed = false;
       }
+
+      // std::cout << counter << "\n";
 
       // if(counter % 500 == 0)
       // {
