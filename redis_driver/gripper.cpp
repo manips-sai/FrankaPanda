@@ -220,7 +220,7 @@ int main(int argc, char** argv) {
             // bool grasp_successful = gripper.grasp(0, gripper_desired_speed, gripper_desired_force, 0, 0);
           std::cout << "grasp status: " << grasp_successful << "\n";
           if (!grasp_successful) {
-            failed_flag = 1;
+            failed_flag = 1;            
           } else {
             failed_flag = 0;
           }
