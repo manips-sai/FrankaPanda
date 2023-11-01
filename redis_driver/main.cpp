@@ -243,13 +243,21 @@ int main (int argc, char** argv) {
         // soft_joint_velocity_limits(i) = joint_velocity_limits[i] - 20 * vel_tol;
         // hard_joint_velocity_limits(i) = joint_velocity_limits[i] - 10 * vel_tol;
         soft_min_joint_velocity_limits(i) = - joint_velocity_limits[i] + 5 * vel_tol;
-        hard_min_joint_velocity_limits(i) = - joint_velocity_limits[i] + 1 * vel_tol;
+        hard_min_joint_velocity_limits(i) = - joint_velocity_limits[i] + 2.5 * vel_tol;
         soft_max_joint_velocity_limits(i) = joint_velocity_limits[i] - 5 * vel_tol;
-        hard_max_joint_velocity_limits(i) = joint_velocity_limits[i] - 1 * vel_tol;
+        hard_max_joint_velocity_limits(i) = joint_velocity_limits[i] - 2.5 * vel_tol;
         // soft_min_joint_velocity_limits(i) = - soft_sf * joint_velocity_limits[i];
         // hard_min_joint_velocity_limits(i) = - hard_sf * joint_velocity_limits[i];
         // soft_max_joint_velocity_limits(i) = soft_sf * joint_velocity_limits[i];
         // hard_max_joint_velocity_limits(i) = hard_sf * joint_velocity_limits[i];
+
+        // specific value for last joint
+        if (i == 6) {
+            soft_min_joint_velocity_limits(i) += 4.5 * vel_tol;
+            hard_min_joint_velocity_limits(i) += 4.5 * vel_tol;
+            soft_max_joint_velocity_limits(i) -= 4.5 * vel_tol;
+            hard_max_joint_velocity_limits(i) -= 4.5 * vel_tol;
+        }
     }
 
     // timing 
@@ -293,7 +301,7 @@ int main (int argc, char** argv) {
         sensor_feedback[4] = model.coriolis(robot_state);
 
         M_array = model.mass(robot_state);
-        Eigen::Map<const Eigen::Matrix<double, 7, 7> > MassMatrix(M_array.data());
+        Eigen::Map<const Eigen::Matrix<double, 7, 7>> MassMatrix(M_array.data());
         Eigen::Map<Eigen::Matrix<double, 7, 1>> _tau(tau_cmd_array.data());
         Eigen::Map<Eigen::Matrix<double, 7, 1>> _sensed_torques(sensor_feedback[2].data());  // sensed torques 
         Eigen::Map<Eigen::Matrix<double, 7, 1>> _coriolis(sensor_feedback[4].data());
@@ -405,9 +413,12 @@ int main (int argc, char** argv) {
                         Command torques blend with holding torques to soft joint velocity (goes from tau -> tau hold with blending)
                     */
                     double alpha = getBlendingCoeff(robot_state.dq[i], soft_min_joint_velocity_limits[i], hard_min_joint_velocity_limits[i]);
+                    // alpha *= alpha;
+                    // double weight = exp(-100 * alpha);
                     double tau_hold = - kv_safety[i] * (robot_state.dq[i] - soft_min_joint_velocity_limits[i]);
                     // double tau_hold = - kv_safety[i] * robot_state.dq[i];
                     _tau_limited(i) = (1 - alpha) * _tau(i) + alpha * tau_hold;
+                    // _tau_limited(i) = weight * _tau(i) + (1 - weight) * tau_hold;
                     
                     // double kv = kv_safety[i] * abs((robot_state.dq[i] - soft_min_joint_velocity_limits[i]) / (hard_min_joint_velocity_limits[i] - soft_min_joint_velocity_limits[i]));
                     // _tau_limited(i) = _tau(i) - kv * robot_state.dq[i];
@@ -416,9 +427,12 @@ int main (int argc, char** argv) {
                         Same as above, but for the upper soft limit 
                     */
                     double alpha = getBlendingCoeff(robot_state.dq[i], soft_max_joint_velocity_limits[i], hard_max_joint_velocity_limits[i]);
+                    // alpha *= alpha;
+                    // double weight = exp(-100 * alpha);
                     double tau_hold = - kv_safety[i] * (robot_state.dq[i] - soft_max_joint_velocity_limits[i]);
                     // double tau_hold = - kv_safety[i] * robot_state.dq[i];
                     _tau_limited(i) = (1 - alpha) * _tau(i) + alpha * tau_hold;
+                    // _tau_limited(i) = weight * _tau(i) + (1 - weight) * tau_hold;
                     
                     // double kv = kv_safety[i] * abs((robot_state.dq[i] - soft_max_joint_velocity_limits[i]) / (hard_max_joint_velocity_limits[i] - soft_max_joint_velocity_limits[i]));
                     // _tau_limited(i) = _tau(i) - kv * robot_state.dq[i];
