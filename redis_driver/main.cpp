@@ -47,7 +47,7 @@ bool safety_mode_flag = false;  // changed to true if safety is violated
 bool safety_enabled = false;  
 int safety_controller_count = 200;
 // const std::array<double, 7> kv_safety = {20.0, 20.0, 20.0, 15.0, 10.0, 10.0, 5.0};
-const std::array<double, 7> kv_safety = {20.0, 20.0, 20.0, 15.0, 10.0, 5.0, 5.0};
+const std::array<double, 7> kv_safety = {20.0, 20.0, 20.0, 15.0, 10.0, 7.0, 5.0};
 
 Eigen::MatrixXd MassMatrix;
 std::array<double, 7> tau_cmd_array{};
@@ -243,9 +243,9 @@ int main (int argc, char** argv) {
         // soft_joint_velocity_limits(i) = joint_velocity_limits[i] - 20 * vel_tol;
         // hard_joint_velocity_limits(i) = joint_velocity_limits[i] - 10 * vel_tol;
         soft_min_joint_velocity_limits(i) = - joint_velocity_limits[i] + 5 * vel_tol;
-        hard_min_joint_velocity_limits(i) = - joint_velocity_limits[i] + 2.5 * vel_tol;
+        hard_min_joint_velocity_limits(i) = - joint_velocity_limits[i] + 3 * vel_tol;
         soft_max_joint_velocity_limits(i) = joint_velocity_limits[i] - 5 * vel_tol;
-        hard_max_joint_velocity_limits(i) = joint_velocity_limits[i] - 2.5 * vel_tol;
+        hard_max_joint_velocity_limits(i) = joint_velocity_limits[i] - 3 * vel_tol;
         // soft_min_joint_velocity_limits(i) = - soft_sf * joint_velocity_limits[i];
         // hard_min_joint_velocity_limits(i) = - hard_sf * joint_velocity_limits[i];
         // soft_max_joint_velocity_limits(i) = soft_sf * joint_velocity_limits[i];
