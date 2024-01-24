@@ -110,9 +110,9 @@ int main (int argc, char** argv) {
     JOINT_ANGLES_KEY = "sai2::FrankaPanda::" + robot_id[robot_ip] + "::sensors::q";
     JOINT_VELOCITIES_KEY = "sai2::FrankaPanda::" + robot_id[robot_ip] + "::sensors::dq";
     JOINT_TORQUES_SENSED_KEY = "sai2::FrankaPanda::" + robot_id[robot_ip] + "::sensors::torques";
-    MASSMATRIX_KEY = "sai2::FrankaPanda::" + robot_id[robot_ip] + "sensors::model::massmatrix";
-    CORIOLIS_KEY = "sai2::FrankaPanda::" + robot_id[robot_ip] + "sensors::model::coriolis";
-    ROBOT_GRAVITY_KEY = "sai2::FrankaPanda::" + robot_id[robot_ip] + "sensors::model::robot_gravity";
+    MASSMATRIX_KEY = "sai2::FrankaPanda::" + robot_id[robot_ip] + "::sensors::model::massmatrix";
+    CORIOLIS_KEY = "sai2::FrankaPanda::" + robot_id[robot_ip] + "::sensors::model::coriolis";
+    ROBOT_GRAVITY_KEY = "sai2::FrankaPanda::" + robot_id[robot_ip] + "::sensors::model::robot_gravity";
 
     // if (robot_ip == "172.16.0.10") {
     //     JOINT_TORQUES_COMMANDED_KEY = "sai2::FrankaPanda::Clyde::actuators::fgc";
