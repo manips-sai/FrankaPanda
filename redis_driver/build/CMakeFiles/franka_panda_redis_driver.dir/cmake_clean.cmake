@@ -1,5 +1,6 @@
 file(REMOVE_RECURSE
   "CMakeFiles/franka_panda_redis_driver.dir/main.cpp.o"
+  "CMakeFiles/franka_panda_redis_driver.dir/main.cpp.o.d"
   "franka_panda_redis_driver"
   "franka_panda_redis_driver.pdb"
 )

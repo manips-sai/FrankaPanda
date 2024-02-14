@@ -1,19 +1,14 @@
+
+# Consider dependencies only in project.
+set(CMAKE_DEPENDS_IN_PROJECT_ONLY OFF)
+
 # The set of languages for which implicit dependencies are needed:
 set(CMAKE_DEPENDS_LANGUAGES
-  "CXX"
   )
-# The set of files for implicit dependencies of each language:
-set(CMAKE_DEPENDS_CHECK_CXX
-  "/home/clyde/sai2/drivers/FrankaPanda/redis_driver/gripper.cpp" "/home/clyde/sai2/drivers/FrankaPanda/redis_driver/build/CMakeFiles/gripper_driver.dir/gripper.cpp.o"
-  )
-set(CMAKE_CXX_COMPILER_ID "GNU")
 
-# The include file search paths:
-set(CMAKE_CXX_TARGET_INCLUDE_PATH
-  "/usr/include/jsoncpp"
-  "/home/clyde/sai2/drivers/FrankaPanda/libfranka/build/../include"
-  "/usr/local/include/eigen3"
-  "/home/clyde/sai2/drivers/FrankaPanda/libfranka/include"
+# The set of dependency files which are needed:
+set(CMAKE_DEPENDS_DEPENDENCY_FILES
+  "/home/src0/sai2/drivers/FrankaPanda/redis_driver/gripper.cpp" "CMakeFiles/gripper_driver.dir/gripper.cpp.o" "gcc" "CMakeFiles/gripper_driver.dir/gripper.cpp.o.d"
   )
 
 # Targets to which this target links.

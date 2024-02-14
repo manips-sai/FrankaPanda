@@ -1,5 +1,6 @@
 file(REMOVE_RECURSE
   "CMakeFiles/gripper_driver.dir/gripper.cpp.o"
+  "CMakeFiles/gripper_driver.dir/gripper.cpp.o.d"
   "gripper_driver"
   "gripper_driver.pdb"
 )
