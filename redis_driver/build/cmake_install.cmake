@@ -1,4 +1,4 @@
-# Install script for directory: /home/src0/sai2/drivers/FrankaPanda/redis_driver
+# Install script for directory: /home/src0/sai2/drivers/FrankaPandaLatest/redis_driver
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -50,5 +50,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/home/src0/sai2/drivers/FrankaPanda/redis_driver/build/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/home/src0/sai2/drivers/FrankaPandaLatest/redis_driver/build/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

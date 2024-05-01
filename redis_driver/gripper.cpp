@@ -65,21 +65,21 @@ int main(int argc, char** argv) {
 
   if(robot_ip == "172.16.0.10")
   {
-    GRIPPER_MODE_KEY  = "sai2::FrankaPanda::Clyde::gripper::mode"; 
-    GRIPPER_MAX_WIDTH_KEY  = "sai2::FrankaPanda::Clyde::gripper::max_width";
-    GRIPPER_CURRENT_WIDTH_KEY  = "sai2::FrankaPanda::Clyde::gripper::current_width";
-    GRIPPER_DESIRED_WIDTH_KEY  = "sai2::FrankaPanda::Clyde::gripper::desired_width";
-    GRIPPER_DESIRED_SPEED_KEY  = "sai2::FrankaPanda::Clyde::gripper::desired_speed";
-    GRIPPER_DESIRED_FORCE_KEY  = "sai2::FrankaPanda::Clyde::gripper::desired_force";   
+    GRIPPER_MODE_KEY  = "sai2::FrankaPanda::Romeo::gripper::mode"; 
+    GRIPPER_MAX_WIDTH_KEY  = "sai2::FrankaPanda::Romeo::gripper::max_width";
+    GRIPPER_CURRENT_WIDTH_KEY  = "sai2::FrankaPanda::Romeo::gripper::current_width";
+    GRIPPER_DESIRED_WIDTH_KEY  = "sai2::FrankaPanda::Romeo::gripper::desired_width";
+    GRIPPER_DESIRED_SPEED_KEY  = "sai2::FrankaPanda::Romeo::gripper::desired_speed";
+    GRIPPER_DESIRED_FORCE_KEY  = "sai2::FrankaPanda::Romeo::gripper::desired_force";   
   }
   else if(robot_ip == "172.16.0.11")
   {
-    GRIPPER_MODE_KEY  = "sai2::FrankaPanda::Bonnie::gripper::mode"; 
-    GRIPPER_MAX_WIDTH_KEY  = "sai2::FrankaPanda::Bonnie::gripper::max_width";
-    GRIPPER_CURRENT_WIDTH_KEY  = "sai2::FrankaPanda::Bonnie::gripper::current_width";
-    GRIPPER_DESIRED_WIDTH_KEY  = "sai2::FrankaPanda::Bonnie::gripper::desired_width";
-    GRIPPER_DESIRED_SPEED_KEY  = "sai2::FrankaPanda::Bonnie::gripper::desired_speed";
-    GRIPPER_DESIRED_FORCE_KEY  = "sai2::FrankaPanda::Bonnie::gripper::desired_force";    
+    GRIPPER_MODE_KEY  = "sai2::FrankaPanda::Juliet::gripper::mode"; 
+    GRIPPER_MAX_WIDTH_KEY  = "sai2::FrankaPanda::Juliet::gripper::max_width";
+    GRIPPER_CURRENT_WIDTH_KEY  = "sai2::FrankaPanda::Juliet::gripper::current_width";
+    GRIPPER_DESIRED_WIDTH_KEY  = "sai2::FrankaPanda::Juliet::gripper::desired_width";
+    GRIPPER_DESIRED_SPEED_KEY  = "sai2::FrankaPanda::Juliet::gripper::desired_speed";
+    GRIPPER_DESIRED_FORCE_KEY  = "sai2::FrankaPanda::Juliet::gripper::desired_force";    
   }
   else
   {
@@ -111,7 +111,7 @@ int main(int argc, char** argv) {
   double gripper_desired_force, gripper_desired_force_tmp;
   double gripper_max_width;
   string gripper_mode = "m";
-  string gripper_mode_tmp;
+  string gripper_mode_tmp = "m";
 
   bool flag_command_changed = false;
 
@@ -139,7 +139,7 @@ int main(int argc, char** argv) {
     gripper_desired_width = gripper_state.max_width;
     // gripper_desired_speed = 0.07;
     gripper_desired_speed = 0.1;
-    gripper_desired_force = 70.0;
+    gripper_desired_force = 50.0;
     gripper.move(gripper_desired_width, gripper_desired_speed);
 
     redis_client.setCommandIs(GRIPPER_DESIRED_WIDTH_KEY, std::to_string(gripper_desired_width));
@@ -240,7 +240,16 @@ int main(int argc, char** argv) {
           // std::lock_guard<std::mutex> lock(mtx);
           // flag_blocking_call_executed = true;                    
         }
-        else
+        else if (gripper_mode == "o") {
+          bool move_successful = gripper.move(gripper_state.max_width, gripper_desired_speed);   
+          if (!move_successful) {
+            failed_flag = 1;
+            gripper_desired_width = gripper_state.width + 0.01;
+            redis_client.setCommandIs(GRIPPER_DESIRED_WIDTH_KEY, std::to_string(gripper_desired_width));
+          } else {
+            failed_flag = 0;
+          }
+        } else 
         {
           std::cout << "WARNING : gripper mode not regognized. Use g for grasp and m for move\n"<< std::endl;
         }

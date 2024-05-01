@@ -7,9 +7,9 @@ set(CMAKE_DEPENDS_GENERATOR "Unix Makefiles")
 # The top level Makefile was generated from the following files:
 set(CMAKE_MAKEFILE_DEPENDS
   "CMakeCache.txt"
-  "/home/src0/sai2/drivers/FrankaPanda/libfranka/build/FrankaConfig.cmake"
-  "/home/src0/sai2/drivers/FrankaPanda/libfranka/build/FrankaConfigVersion.cmake"
-  "/home/src0/sai2/drivers/FrankaPanda/libfranka/build/FrankaTargets.cmake"
+  "/home/src0/sai2/drivers/FrankaPandaLatest/libfranka/build/FrankaConfig.cmake"
+  "/home/src0/sai2/drivers/FrankaPandaLatest/libfranka/build/FrankaConfigVersion.cmake"
+  "/home/src0/sai2/drivers/FrankaPandaLatest/libfranka/build/FrankaTargets.cmake"
   "../CMakeLists.txt"
   "CMakeFiles/3.22.1/CMakeCCompiler.cmake"
   "CMakeFiles/3.22.1/CMakeCXXCompiler.cmake"

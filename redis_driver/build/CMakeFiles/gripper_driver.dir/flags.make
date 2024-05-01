@@ -4,7 +4,7 @@
 # compile CXX with /usr/bin/c++
 CXX_DEFINES = 
 
-CXX_INCLUDES = -I/usr/include/jsoncpp -I/home/src0/sai2/drivers/FrankaPanda/libfranka/build/../include -I/usr/include/eigen3 -isystem /home/src0/sai2/drivers/FrankaPanda/libfranka/include -isystem /home/src0/sai2/drivers/FrankaPanda/libfranka/common/include
+CXX_INCLUDES = -I/usr/include/jsoncpp -I/home/src0/sai2/drivers/FrankaPandaLatest/libfranka/build/../include -I/usr/include/eigen3 -isystem /home/src0/sai2/drivers/FrankaPandaLatest/libfranka/include -isystem /home/src0/sai2/drivers/FrankaPandaLatest/libfranka/common/include
 
-CXX_FLAGS = -O3 -DNDEBUG -std=gnu++14
+CXX_FLAGS = -O3 -DNDEBUG -std=gnu++17
 
