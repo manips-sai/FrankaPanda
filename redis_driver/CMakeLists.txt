@@ -59,3 +59,5 @@ include_directories( ${franka_panda_redis_driver_INCLUDE_DIRS} )
 target_link_libraries(${PROJECT_NAME} ${franka_panda_redis_driver_LIBRARIES})
 target_link_libraries(gripper_driver ${franka_panda_redis_driver_LIBRARIES})
 
+set(CONFIG_FOLDER "${CMAKE_CURRENT_SOURCE_DIR}/config_folder")
+add_definitions(-DCONFIG_FOLDER="${CONFIG_FOLDER}")
