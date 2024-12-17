@@ -22,6 +22,8 @@ struct DriverConfig {
 };
 
 DriverConfig loadConfig(const std::string& config_file) {
+	DriverConfig config;
+	
 	// load config file
 	tinyxml2::XMLDocument doc;
 	if (doc.LoadFile(config_file.c_str()) != tinyxml2::XML_SUCCESS) {
@@ -29,15 +31,13 @@ DriverConfig loadConfig(const std::string& config_file) {
 							config_file);
 	}
 
-	if (doc.FirstChildElement("driverConfig") == nullptr) {
+	// parse driver config
+	tinyxml2::XMLElement* driver_xml = doc.FirstChildElement("saiFrankaDriverConfig");
+	if (driver_xml == nullptr) {
 		throw runtime_error(
-			"No 'driverConfig' element found in driver config file: " +
+			"No 'saiFrankaDriverConfig' element found in driver config file: " +
 			config_file);
 	}
-
-	// parse driver config
-	DriverConfig config;
-	tinyxml2::XMLElement* driver_xml = doc.FirstChildElement("driverConfig");
 
 	// robot name
 	if(!driver_xml->Attribute("robotName")) {
