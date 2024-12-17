@@ -11,6 +11,9 @@
 #include <iomanip>
 #include <algorithm>
 
+namespace Sai {
+namespace Franka {
+
 #define CHECK(X) if ( !X || X->type == REDIS_REPLY_ERROR ) { printf("Error\n"); exit(-1); }
 
 using std::cout;
@@ -530,5 +533,7 @@ bool CDatabaseRedisClient::hEigenFromStringArrayCustom(Eigen::MatrixBase<Derived
 	return true;
 }
 
+} // namespace Franka
+} // namespace Sai
 
 #endif //CDATABASEREDISCLIENT_H

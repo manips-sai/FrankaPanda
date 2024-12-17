@@ -10,8 +10,8 @@
 #include <franka/exception.h>
 #include <franka/gripper.h>
 
-#include "RedisClientLocal.h"
-#include "DriverConfig.h"
+#include "SaiFrankaRedisClientLocal.h"
+#include "SaiFrankaDriverConfig.h"
 #include <thread>
 #include <atomic>
 #include <mutex>
@@ -64,7 +64,7 @@ int main(int argc, char** argv) {
     }
 	std::string config_file_path = std::string(CONFIG_FOLDER) + "/" + config_file;
 
-	DriverConfig config = loadConfig(config_file_path);
+	Sai::Franka::DriverConfig config = Sai::Franka::loadConfig(config_file_path);
 	std::string redis_prefix = config.redis_prefix.empty() ? "" : config.redis_prefix + "::";
 
   GRIPPER_MODE_KEY  = redis_prefix + config.robot_name + "::gripper::mode"; 
@@ -75,12 +75,12 @@ int main(int argc, char** argv) {
   GRIPPER_DESIRED_FORCE_KEY  = redis_prefix + config.robot_name + "::gripper::desired_force";   
 
   // start redis client
-  CDatabaseRedisClient redis_client;
-  HiredisServerInfo info;
+  Sai::Franka::CDatabaseRedisClient redis_client;
+  Sai::Franka::HiredisServerInfo info;
   info.hostname_ = "127.0.0.1";
   info.port_ = 6379;
   info.timeout_ = { 1, 500000 }; // 1.5 seconds
-  redis_client = CDatabaseRedisClient();
+  redis_client = Sai::Franka::CDatabaseRedisClient();
   redis_client.serverIs(info);
 
   // set up signal handler
@@ -93,8 +93,8 @@ int main(int argc, char** argv) {
   double gripper_desired_speed, gripper_desired_speed_tmp;
   double gripper_desired_force, gripper_desired_force_tmp;
   double gripper_max_width;
-  string gripper_mode = "m";
-  string gripper_mode_tmp = "m";
+  std::string gripper_mode = "m";
+  std::string gripper_mode_tmp = "m";
 
   bool flag_command_changed = false;
 

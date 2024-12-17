@@ -14,8 +14,8 @@
 #include <franka/exception.h>
 #include <franka/model.h>
 #include <franka/robot.h>
-#include "RedisClientLocal.h"
-#include "DriverConfig.h"
+#include "SaiFrankaRedisClientLocal.h"
+#include "SaiFrankaDriverConfig.h"
 #include "tinyxml2.h"
 
 // redis keys
@@ -73,7 +73,7 @@ std::array<double, 7> gravity_vector{};
 std::array<double, 7> coriolis{};
 std::array<double, 49> M_array{};  
 std::vector<std::array<double, 7>> sensor_feedback;
-std::vector<string> key_names;
+std::vector<std::string> key_names;
 // bool fDriverRunning = true;
 // void sighandler(int sig)
 // { fDriverRunning = false; }
@@ -101,7 +101,7 @@ enum Limit {
     MAX_HARD_VEL
 };
 
-const std::vector<string> limit_state {"Safe", "Soft Min", "Hard Min", "Soft Max", "Hard Max", "Min Soft Vel", "Min Hard Vel", "Max Soft Vel", "Max Hard Vel"};
+const std::vector<std::string> limit_state {"Safe", "Soft Min", "Hard Min", "Soft Max", "Hard Max", "Min Soft Vel", "Min Hard Vel", "Max Soft Vel", "Max Hard Vel"};
 
 double getBlendingCoeff(const double& val, const double& low, const double& high) {
     return std::clamp((val - low) / (high - low), 0., 1.);
@@ -131,7 +131,7 @@ std::array<double, 7> getMinJointVelocity(std::array<double, 7>& q) {
     return dq_min;
 }
 
-
+Sai::Franka::DriverConfig config;
 
 int main (int argc, char** argv) {
 
@@ -142,7 +142,7 @@ int main (int argc, char** argv) {
     }
 	std::string config_file_path = std::string(CONFIG_FOLDER) + "/" + config_file;
 
-	config = loadConfig(config_file_path);
+	config = Sai::Franka::loadConfig(config_file_path);
 	std::string redis_prefix = config.redis_prefix.empty() ? "" : config.redis_prefix + "::";
 
     JOINT_TORQUES_COMMANDED_KEY = redis_prefix + "commands::" + config.robot_name + "::control_torques";
@@ -157,12 +157,12 @@ int main (int argc, char** argv) {
     CONSTRAINED_NULLSPACE_KEY = redis_prefix + "redis_driver::" + config.robot_name + "::safety_controller::constraint_nullspace";
 
     // start redis client
-    CDatabaseRedisClient* redis_client;
-    HiredisServerInfo info;
+    Sai::Franka::CDatabaseRedisClient* redis_client;
+    Sai::Franka::HiredisServerInfo info;
     info.hostname_ = "127.0.0.1";
     info.port_ = 6379;
     info.timeout_ = { 1, 500000 }; // 1.5 seconds
-    redis_client = new CDatabaseRedisClient();
+    redis_client = new Sai::Franka::CDatabaseRedisClient();
     redis_client->serverIs(info);
 
     // // set up signal handler
@@ -202,7 +202,7 @@ int main (int argc, char** argv) {
     sensor_feedback.push_back(gravity_vector);
     sensor_feedback.push_back(coriolis);
 
-    if (config.robot_type == RobotType::FRANKA_PANDA) {
+    if (config.robot_type == Sai::Franka::RobotType::FRANKA_PANDA) {
         std::cout << "Using Franka Panda specifications\n";
         // Panda specifications 
         joint_position_max_default = {2.8973, 1.7628, 2.8973, -0.0698, 2.8973, 3.7525, 2.8973};
@@ -218,7 +218,7 @@ int main (int argc, char** argv) {
         pos_zones = {6., 9.};  // hard, soft
         // vel_zones = {5., 7.};  // hard, soft
         vel_zones = {6., 8.};  // hard, soft  (8, 6)
-    } else if (config.robot_type == RobotType::FRANKA_RESEARCH_3) {
+    } else if (config.robot_type == Sai::Franka::RobotType::FRANKA_RESEARCH_3) {
         std::cout << "Using FR3 specifications\n";
         // FR3 specifications
         joint_position_max_default = {2.7437, 1.7837, 2.9007, -0.1518, 2.8065, 4.5169, 3.0159};
@@ -327,7 +327,7 @@ int main (int argc, char** argv) {
         sensor_feedback[4] = model.coriolis(robot_state);
 
         // compute joint velocity limits at configuration if using FR3 and not using conservative bounds 
-        if (config.robot_type == RobotType::FRANKA_RESEARCH_3 && !config.use_conservative_bounds) {
+        if (config.robot_type == Sai::Franka::RobotType::FRANKA_RESEARCH_3 && !config.use_conservative_bounds) {
             joint_velocity_lower_limits = getMinJointVelocity(sensor_feedback[0]);
             joint_velocity_upper_limits = getMaxJointVelocity(sensor_feedback[0]);
             for (int i = 0; i < 7; ++i) {

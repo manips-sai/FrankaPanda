@@ -4,6 +4,9 @@
 #include <stdexcept>
 #include "tinyxml2.h"
 
+namespace Sai {
+namespace Franka {
+
 enum class RobotType {
 	FRANKA_PANDA,
 	FRANKA_RESEARCH_3
@@ -17,7 +20,6 @@ struct DriverConfig {
 	bool use_conservative_bounds = false;
 	bool verbose = true;
 };
-DriverConfig config;
 
 DriverConfig loadConfig(const std::string& config_file) {
 	// load config file
@@ -82,3 +84,6 @@ DriverConfig loadConfig(const std::string& config_file) {
 
     return config;
 }
+
+} // namespace Franka
+} // namespace Sai
