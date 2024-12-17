@@ -144,6 +144,10 @@ struct DriverConfig {
 	bool use_conservative_bounds = false;
 	bool verbose = true;
 };
+<<<<<<< HEAD
+=======
+DriverConfig config;
+>>>>>>> 98ba309d82dde8fd4eae2443f3dc470c2609259b
 
 DriverConfig loadConfig(const std::string& config_file) {
 	// load config file
@@ -211,7 +215,11 @@ int main (int argc, char** argv) {
     }
 	std::string config_file_path = std::string(CONFIG_FOLDER) + "/" + config_file;
 
+<<<<<<< HEAD
 	DriverConfig config = loadConfig(config_file_path);
+=======
+	config = loadConfig(config_file_path);
+>>>>>>> 98ba309d82dde8fd4eae2443f3dc470c2609259b
 	std::string redis_prefix = config.redis_prefix.empty() ? "" : config.redis_prefix + "::";
 
     JOINT_TORQUES_COMMANDED_KEY = redis_prefix + "commands::" + config.robot_name + "::control_torques";
@@ -271,7 +279,11 @@ int main (int argc, char** argv) {
     sensor_feedback.push_back(gravity_vector);
     sensor_feedback.push_back(coriolis);
 
+<<<<<<< HEAD
     if (USING_PANDA) {
+=======
+    if (config.robot_type == RobotType::FRANKA_PANDA) {
+>>>>>>> 98ba309d82dde8fd4eae2443f3dc470c2609259b
         std::cout << "Using Franka Panda specifications\n";
         // Panda specifications 
         joint_position_max_default = {2.8973, 1.7628, 2.8973, -0.0698, 2.8973, 3.7525, 2.8973};
@@ -287,7 +299,7 @@ int main (int argc, char** argv) {
         pos_zones = {6., 9.};  // hard, soft
         // vel_zones = {5., 7.};  // hard, soft
         vel_zones = {6., 8.};  // hard, soft  (8, 6)
-    } else {
+    } else if (config.robot_type == RobotType::FRANKA_RESEARCH_3) {
         std::cout << "Using FR3 specifications\n";
         // FR3 specifications
         joint_position_max_default = {2.7437, 1.7837, 2.9007, -0.1518, 2.8065, 4.5169, 3.0159};
@@ -302,7 +314,10 @@ int main (int argc, char** argv) {
         // zone definitions
         pos_zones = {6., 9.};  
         vel_zones = {6., 8.};
-    }
+    } else {
+		std::cout << "Unknown robot type\n";
+		return -1;
+	}
 
     // limit options
     bool _pos_limit_opt = true;
@@ -393,7 +408,7 @@ int main (int argc, char** argv) {
         sensor_feedback[4] = model.coriolis(robot_state);
 
         // compute joint velocity limits at configuration if using FR3 and not using conservative bounds 
-        if (!USING_PANDA && !USING_CONSERVATIVE_FR3) {
+        if (config.robot_type == RobotType::FRANKE_RESEARCH_3 && !config.use_conservative_bounds) {
             joint_velocity_lower_limits = getMinJointVelocity(sensor_feedback[0]);
             joint_velocity_upper_limits = getMaxJointVelocity(sensor_feedback[0]);
             for (int i = 0; i < 7; ++i) {
@@ -473,7 +488,7 @@ int main (int argc, char** argv) {
         }
 
         // safety verbose output
-        if (VERBOSE) {
+        if (config.verbose) {
             for (int i = 0; i < 7; ++i) {
                 if (_pos_limit_flag[i] != SAFE) {
                     std::cout << counter << ": Joint " << i << " State: " << limit_state[_pos_limit_flag[i]] << "\n";
