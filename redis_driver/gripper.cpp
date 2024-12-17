@@ -10,7 +10,8 @@
 #include <franka/exception.h>
 #include <franka/gripper.h>
 
-#include "RedisClient.h"
+#include "RedisClientLocal.h"
+#include "DriverConfig.h"
 #include <thread>
 #include <atomic>
 #include <mutex>
@@ -56,40 +57,22 @@ void stopGripper(franka::Gripper& gripper) {
 
 int main(int argc, char** argv) {
 
-  if(argc < 2)
-  {
-    std::cout << "Please enter the robot ip as an argument" << std::endl;
-    return -1;
-  }
-  std::string robot_ip = argv[1];
+	std::string config_file = "default_config.xml";
 
-  if(robot_ip == "172.16.0.10")
-  {
-    GRIPPER_MODE_KEY  = "sai2::FrankaPanda::Romeo::gripper::mode"; 
-    GRIPPER_MAX_WIDTH_KEY  = "sai2::FrankaPanda::Romeo::gripper::max_width";
-    GRIPPER_CURRENT_WIDTH_KEY  = "sai2::FrankaPanda::Romeo::gripper::current_width";
-    GRIPPER_DESIRED_WIDTH_KEY  = "sai2::FrankaPanda::Romeo::gripper::desired_width";
-    GRIPPER_DESIRED_SPEED_KEY  = "sai2::FrankaPanda::Romeo::gripper::desired_speed";
-    GRIPPER_DESIRED_FORCE_KEY  = "sai2::FrankaPanda::Romeo::gripper::desired_force";   
-  }
-  else if(robot_ip == "172.16.0.11")
-  {
-    GRIPPER_MODE_KEY  = "sai2::FrankaPanda::Juliet::gripper::mode"; 
-    GRIPPER_MAX_WIDTH_KEY  = "sai2::FrankaPanda::Juliet::gripper::max_width";
-    GRIPPER_CURRENT_WIDTH_KEY  = "sai2::FrankaPanda::Juliet::gripper::current_width";
-    GRIPPER_DESIRED_WIDTH_KEY  = "sai2::FrankaPanda::Juliet::gripper::desired_width";
-    GRIPPER_DESIRED_SPEED_KEY  = "sai2::FrankaPanda::Juliet::gripper::desired_speed";
-    GRIPPER_DESIRED_FORCE_KEY  = "sai2::FrankaPanda::Juliet::gripper::desired_force";    
-  }
-  else
-  {
-    GRIPPER_MODE_KEY  = "sai2::FrankaPanda::gripper::mode"; 
-    GRIPPER_MAX_WIDTH_KEY  = "sai2::FrankaPanda::gripper::max_width";
-    GRIPPER_CURRENT_WIDTH_KEY  = "sai2::FrankaPanda::gripper::current_width";
-    GRIPPER_DESIRED_WIDTH_KEY  = "sai2::FrankaPanda::gripper::desired_width";
-    GRIPPER_DESIRED_SPEED_KEY  = "sai2::FrankaPanda::gripper::desired_speed";
-    GRIPPER_DESIRED_FORCE_KEY  = "sai2::FrankaPanda::gripper::desired_force";
-  }
+    if (argc > 1) {
+        config_file = argv[1];
+    }
+	std::string config_file_path = std::string(CONFIG_FOLDER) + "/" + config_file;
+
+	DriverConfig config = loadConfig(config_file_path);
+	std::string redis_prefix = config.redis_prefix.empty() ? "" : config.redis_prefix + "::";
+
+  GRIPPER_MODE_KEY  = redis_prefix + config.robot_name + "::gripper::mode"; 
+  GRIPPER_MAX_WIDTH_KEY  = redis_prefix + config.robot_name + "::gripper::max_width";
+  GRIPPER_CURRENT_WIDTH_KEY  = redis_prefix + config.robot_name + "::gripper::current_width";
+  GRIPPER_DESIRED_WIDTH_KEY  = redis_prefix + config.robot_name + "::gripper::desired_width";
+  GRIPPER_DESIRED_SPEED_KEY  = redis_prefix + config.robot_name + "::gripper::desired_speed";
+  GRIPPER_DESIRED_FORCE_KEY  = redis_prefix + config.robot_name + "::gripper::desired_force";   
 
   // start redis client
   CDatabaseRedisClient redis_client;
@@ -117,7 +100,7 @@ int main(int argc, char** argv) {
 
   try {
     // connect to gripper
-    franka::Gripper gripper(robot_ip);
+    franka::Gripper gripper(config.robot_ip);
 
     // setup stop thread 
     begin_move_flag.store(0);

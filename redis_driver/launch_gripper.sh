@@ -1,1 +1,1 @@
-./build/gripper_driver 172.16.0.10
+./build/sai_franka_gripper_redis_driver

@@ -14,8 +14,8 @@
 #include <franka/exception.h>
 #include <franka/model.h>
 #include <franka/robot.h>
-#include "redis/RedisClient.h"
-#include "filters/ButterworthFilter.h"
+#include "RedisClientLocal.h"
+#include "DriverConfig.h"
 #include "tinyxml2.h"
 
 // redis keys
@@ -131,80 +131,7 @@ std::array<double, 7> getMinJointVelocity(std::array<double, 7>& q) {
     return dq_min;
 }
 
-enum class RobotType {
-	FRANKA_PANDA,
-	FRANKA_RESEARCH_3
-};
 
-struct DriverConfig {
-	std::string robot_name;
-	std::string robot_ip;
-	std::string redis_prefix = "sai";
-	RobotType robot_type = RobotType::FRANKA_RESEARCH_3;
-	bool use_conservative_bounds = false;
-	bool verbose = true;
-};
-<<<<<<< HEAD
-=======
-DriverConfig config;
->>>>>>> 98ba309d82dde8fd4eae2443f3dc470c2609259b
-
-DriverConfig loadConfig(const std::string& config_file) {
-	// load config file
-	tinyxml2::XMLDocument doc;
-	if (doc.LoadFile(config_file.c_str()) != tinyxml2::XML_SUCCESS) {
-		throw runtime_error("Could not load driver config file: " +
-							config_file);
-	}
-
-	if (doc.FirstChildElement("driverConfig") == nullptr) {
-		throw runtime_error(
-			"No 'driverConfig' element found in driver config file: " +
-			config_file);
-	}
-
-	// parse driver config
-	DriverConfig config;
-	tinyxml2::XMLElement* driver_xml = doc.FirstChildElement("driverConfig");
-
-	// robot name
-	if(!driver_xml->Attribute("robotName")) {
-		throw runtime_error("No 'robotName' attribute found in driver config file: " +
-							config_file);
-	}
-	config.robot_name = driver_xml->Attribute("robotName");
-
-	// robot ip
-	if(!driver_xml->Attribute("robotIP")) {
-		throw runtime_error("No 'robotIP' attribute found in driver config file: " +
-							config_file);
-	}
-	config.robot_ip = driver_xml->Attribute("robotIP");
-
-	// robot type
-	if(driver_xml->Attribute("robotType")) {
-		std::string robot_type_str = driver_xml->Attribute("robotType");
-		if(robot_type_str == "panda") {
-			config.robot_type = RobotType::FRANKA_PANDA;
-		}
-		else if(robot_type_str == "fr3") {
-			config.robot_type = RobotType::FRANKA_RESEARCH_3;
-		}
-		else {
-			throw runtime_error("Unknown robot type: " + robot_type_str + "\nsupported types are: Panda, fr3");
-		}
-	}
-
-	// use conservative bounds
-	if(driver_xml->Attribute("useConservativeBounds")) {
-		config.use_conservative_bounds = driver_xml->BoolAttribute("useConservativeBounds");
-	}
-
-	// verbose
-	if(driver_xml->Attribute("verbose")) {
-		config.verbose = driver_xml->BoolAttribute("verbose");
-	}
-}
 
 int main (int argc, char** argv) {
 
@@ -215,11 +142,7 @@ int main (int argc, char** argv) {
     }
 	std::string config_file_path = std::string(CONFIG_FOLDER) + "/" + config_file;
 
-<<<<<<< HEAD
-	DriverConfig config = loadConfig(config_file_path);
-=======
 	config = loadConfig(config_file_path);
->>>>>>> 98ba309d82dde8fd4eae2443f3dc470c2609259b
 	std::string redis_prefix = config.redis_prefix.empty() ? "" : config.redis_prefix + "::";
 
     JOINT_TORQUES_COMMANDED_KEY = redis_prefix + "commands::" + config.robot_name + "::control_torques";
@@ -279,11 +202,7 @@ int main (int argc, char** argv) {
     sensor_feedback.push_back(gravity_vector);
     sensor_feedback.push_back(coriolis);
 
-<<<<<<< HEAD
-    if (USING_PANDA) {
-=======
     if (config.robot_type == RobotType::FRANKA_PANDA) {
->>>>>>> 98ba309d82dde8fd4eae2443f3dc470c2609259b
         std::cout << "Using Franka Panda specifications\n";
         // Panda specifications 
         joint_position_max_default = {2.8973, 1.7628, 2.8973, -0.0698, 2.8973, 3.7525, 2.8973};
@@ -408,7 +327,7 @@ int main (int argc, char** argv) {
         sensor_feedback[4] = model.coriolis(robot_state);
 
         // compute joint velocity limits at configuration if using FR3 and not using conservative bounds 
-        if (config.robot_type == RobotType::FRANKE_RESEARCH_3 && !config.use_conservative_bounds) {
+        if (config.robot_type == RobotType::FRANKA_RESEARCH_3 && !config.use_conservative_bounds) {
             joint_velocity_lower_limits = getMinJointVelocity(sensor_feedback[0]);
             joint_velocity_upper_limits = getMaxJointVelocity(sensor_feedback[0]);
             for (int i = 0; i < 7; ++i) {
