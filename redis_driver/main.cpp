@@ -14,8 +14,9 @@
 #include <franka/exception.h>
 #include <franka/model.h>
 #include <franka/robot.h>
-#include "RedisClient.h"
-#include "ButterworthFilter.h"
+#include "redis/RedisClient.h"
+#include "filters/ButterworthFilter.h"
+#include "tinyxml2.h"
 
 // redis keys
 // - read:
@@ -32,9 +33,9 @@ std::string SENT_TORQUES_LOGGING_KEY;
 std::string CONSTRAINED_NULLSPACE_KEY;
 
 // user options 
-const bool USING_PANDA = false;  // user switch between Panda and FR3
-const bool USING_CONSERVATIVE_FR3 = false;  // true to use rectangular bounds, false to use configuration-based bounds 
-const bool VERBOSE = true;  // print out safety violations
+// const bool USING_PANDA = false;  // user switch between Panda and FR3
+// const bool USING_CONSERVATIVE_FR3 = false;  // true to use rectangular bounds, false to use configuration-based bounds 
+// const bool VERBOSE = true;  // print out safety violations
 
 // globals 
 std::array<double, 7> joint_position_max_default;
@@ -130,29 +131,99 @@ std::array<double, 7> getMinJointVelocity(std::array<double, 7>& q) {
     return dq_min;
 }
 
+enum class RobotType {
+	FRANKA_PANDA,
+	FRANKA_RESEARCH_3
+};
+
+struct DriverConfig {
+	std::string robot_name;
+	std::string robot_ip;
+	std::string redis_prefix = "sai";
+	RobotType robot_type = RobotType::FRANKA_RESEARCH_3;
+	bool use_conservative_bounds = false;
+	bool verbose = true;
+};
+
+DriverConfig loadConfig(const std::string& config_file) {
+	// load config file
+	tinyxml2::XMLDocument doc;
+	if (doc.LoadFile(config_file.c_str()) != tinyxml2::XML_SUCCESS) {
+		throw runtime_error("Could not load driver config file: " +
+							config_file);
+	}
+
+	if (doc.FirstChildElement("driverConfig") == nullptr) {
+		throw runtime_error(
+			"No 'driverConfig' element found in driver config file: " +
+			config_file);
+	}
+
+	// parse driver config
+	DriverConfig config;
+	tinyxml2::XMLElement* driver_xml = doc.FirstChildElement("driverConfig");
+
+	// robot name
+	if(!driver_xml->Attribute("robotName")) {
+		throw runtime_error("No 'robotName' attribute found in driver config file: " +
+							config_file);
+	}
+	config.robot_name = driver_xml->Attribute("robotName");
+
+	// robot ip
+	if(!driver_xml->Attribute("robotIP")) {
+		throw runtime_error("No 'robotIP' attribute found in driver config file: " +
+							config_file);
+	}
+	config.robot_ip = driver_xml->Attribute("robotIP");
+
+	// robot type
+	if(driver_xml->Attribute("robotType")) {
+		std::string robot_type_str = driver_xml->Attribute("robotType");
+		if(robot_type_str == "panda") {
+			config.robot_type = RobotType::FRANKA_PANDA;
+		}
+		else if(robot_type_str == "fr3") {
+			config.robot_type = RobotType::FRANKA_RESEARCH_3;
+		}
+		else {
+			throw runtime_error("Unknown robot type: " + robot_type_str + "\nsupported types are: Panda, fr3");
+		}
+	}
+
+	// use conservative bounds
+	if(driver_xml->Attribute("useConservativeBounds")) {
+		config.use_conservative_bounds = driver_xml->BoolAttribute("useConservativeBounds");
+	}
+
+	// verbose
+	if(driver_xml->Attribute("verbose")) {
+		config.verbose = driver_xml->BoolAttribute("verbose");
+	}
+}
+
 int main (int argc, char** argv) {
 
-    if (argc < 2) {
-        std::cout << "Please enter the robot ip as an argument" << "\n";
-        return -1;
+	std::string config_file = "default_config.xml";
+
+    if (argc > 1) {
+        config_file = argv[1];
     }
-    std::string robot_ip = argv[1];
+	std::string config_file_path = std::string(CONFIG_FOLDER) + "/" + config_file;
 
-    std::map<string, string> robot_id;
-    robot_id[""] = "";
-    robot_id["172.16.0.10"] = "Romeo";
-    robot_id["172.16.0.11"] = "Juliet";
+	DriverConfig config = loadConfig(config_file_path);
+	std::string redis_prefix = config.redis_prefix.empty() ? "" : config.redis_prefix + "::";
 
-    JOINT_TORQUES_COMMANDED_KEY = "sai2::FrankaPanda::" + robot_id[robot_ip] + "::actuators::fgc";
-    JOINT_ANGLES_KEY = "sai2::FrankaPanda::" + robot_id[robot_ip] + "::sensors::q";
-    JOINT_VELOCITIES_KEY = "sai2::FrankaPanda::" + robot_id[robot_ip] + "::sensors::dq";
-    JOINT_TORQUES_SENSED_KEY = "sai2::FrankaPanda::" + robot_id[robot_ip] + "::sensors::torques";
-    MASSMATRIX_KEY = "sai2::FrankaPanda::" + robot_id[robot_ip] + "::sensors::model::massmatrix";
-    CORIOLIS_KEY = "sai2::FrankaPanda::" + robot_id[robot_ip] + "::sensors::model::coriolis";
-    ROBOT_GRAVITY_KEY = "sai2::FrankaPanda::" + robot_id[robot_ip] + "::sensors::model::robot_gravity";
-    SAFETY_TORQUES_LOGGING_KEY = "sai2::FrankaPanda::" + robot_id[robot_ip] + "::sensors::safety::safety_torques";
-    SENT_TORQUES_LOGGING_KEY = "sai2::FrankaPanda::" + robot_id[robot_ip] + "::sensors::safety::sent_torques";
-    CONSTRAINED_NULLSPACE_KEY = "sai2::FrankaPanda::" + robot_id[robot_ip] + "::sensors::model::constraint_nullspace";
+    JOINT_TORQUES_COMMANDED_KEY = redis_prefix + "commands::" + config.robot_name + "::control_torques";
+    JOINT_ANGLES_KEY = redis_prefix + "sensors::" + config.robot_name + "::joint_positions";
+    JOINT_VELOCITIES_KEY = redis_prefix + "sensors::" + config.robot_name + "::joint_velocities";
+    JOINT_TORQUES_SENSED_KEY = redis_prefix + "sensors::" + config.robot_name + "::joint_torques";
+    MASSMATRIX_KEY = redis_prefix + "sensors::" + config.robot_name + "::model::mass_matrix";
+    CORIOLIS_KEY = redis_prefix + "sensors::" + config.robot_name + "::model::coriolis";
+    ROBOT_GRAVITY_KEY = redis_prefix + "sensors::" + config.robot_name + "::model::robot_gravity";
+    SAFETY_TORQUES_LOGGING_KEY = redis_prefix + "redis_driver::" + config.robot_name + "::safety_controller::safety_torques";
+    SENT_TORQUES_LOGGING_KEY = redis_prefix + "redis_driver::" + config.robot_name + "::safety_controller::sent_torques";
+    CONSTRAINED_NULLSPACE_KEY = redis_prefix + "redis_driver::" + config.robot_name + "::safety_controller::constraint_nullspace";
 
     // start redis client
     CDatabaseRedisClient* redis_client;
@@ -199,17 +270,6 @@ int main (int argc, char** argv) {
     sensor_feedback.push_back(tau_sensed_array);
     sensor_feedback.push_back(gravity_vector);
     sensor_feedback.push_back(coriolis);
-
-    // create low pass filters for velocities (if needed; currently not used)
-    Eigen::VectorXd _vel_raw = Eigen::VectorXd::Zero(7);
-    Eigen::VectorXd _vel_filtered = Eigen::VectorXd::Zero(7);
-    Eigen::VectorXd _vel_out_filtered = Eigen::VectorXd::Zero(7);
-    sai::ButterworthFilter _filter;
-    _filter.setDimension(7);
-    _filter.setCutoffFrequency(0.005);  // very smooth velocity signal to increase kv damping 
-    sai::ButterworthFilter _filter_out;
-    _filter_out.setDimension(7);
-    _filter_out.setCutoffFrequency(0.01);  // velocity sensor output (not typically used)
 
     if (USING_PANDA) {
         std::cout << "Using Franka Panda specifications\n";
@@ -312,7 +372,7 @@ int main (int argc, char** argv) {
     // std::thread redis_thread(redis_transfer, redis_client);
 
     // connect to robot and gripper
-    franka::Robot robot(robot_ip);
+    franka::Robot robot(config.robot_ip);
     // load the kinematics and dynamics model
     franka::Model model = robot.loadModel();
 
@@ -325,20 +385,9 @@ int main (int argc, char** argv) {
     auto torque_control_callback = [&](const franka::RobotState& robot_state,
                                         franka::Duration period) -> franka::Torques 
     {
-        // filter velocities 
-        for (int i = 0; i < 7; ++i) {
-            _vel_raw(i) = robot_state.dq[i];
-        }
-        _vel_filtered = _filter.update(_vel_raw);
-        _vel_out_filtered = _filter_out.update(_vel_raw);
-        for (int i = 0; i < 7; ++i) {
-            dq_array[i] = _vel_out_filtered[i];
-        }
-
         // start = std::clock();
         sensor_feedback[0] = robot_state.q;
-        sensor_feedback[1] = robot_state.dq;  // non-filtered velocities 
-        // sensor_feedback[1] = dq_array;  // filtered velocities
+        sensor_feedback[1] = robot_state.dq;
         sensor_feedback[2] = robot_state.tau_J;
         sensor_feedback[3] = model.gravity(robot_state);
         sensor_feedback[4] = model.coriolis(robot_state);
