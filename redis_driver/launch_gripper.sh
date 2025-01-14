@@ -1,1 +1,0 @@
-./build/sai_franka_gripper_redis_driver
