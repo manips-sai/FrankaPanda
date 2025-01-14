@@ -1,0 +1,3 @@
+<?xml version="1.0" ?>
+
+<saiFrankaDriverConfig robotName="FrankaRobot" robotIP="172.16.0.10" redisPrefix="sai" robotType="fr3"/>
