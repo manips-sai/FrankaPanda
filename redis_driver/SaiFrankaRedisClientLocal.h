@@ -180,8 +180,12 @@ public:
 		if ( r == REDIS_ERR ) { printf("Error\n"); exit(-1); }	    
 		CHECK(reply_);   
 		if(!hDoubleArrayFromStringArrayJSON(get_data_mssg_cmd_torques, 7, reply_->str)) {
+			freeReplyObject(reply_);
+			reply_ = NULL;
 			throw(runtime_error("Could not deserialize custom string to eigen data!"));
 		}
+		freeReplyObject(reply_);
+		reply_ = NULL;
 		cmd--;
 
 	    /* Read (and ignore) the replies to the set commands */

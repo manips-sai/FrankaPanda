@@ -243,8 +243,8 @@ int main (int argc, char** argv) {
     bool _vel_limit_opt = true;
 
     // setup joint limit avoidance 
-    std::vector<int> _pos_limit_flag {7, SAFE};
-    std::vector<int> _vel_limit_flag {7, SAFE};
+    std::vector<int> _pos_limit_flag(7, SAFE);
+    std::vector<int> _vel_limit_flag(7, SAFE);
     Eigen::MatrixXd _J_s;  // constraint task jacobian for nullspace projection (n_limited x dof)   
     Eigen::MatrixXd _Lambda_s;  // op-space matrix
     Eigen::MatrixXd _Jbar_s;
