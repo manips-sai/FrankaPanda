@@ -1,6 +1,12 @@
 #ifndef CDATABASEREDISCLIENT_H
 #define CDATABASEREDISCLIENT_H
 
+#include <array>
+#include <cerrno>
+#include <cctype>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <Eigen/Core>
 #include <hiredis/hiredis.h>
 #include <string>
@@ -10,6 +16,7 @@
 #include <sstream>
 #include <iomanip>
 #include <algorithm>
+#include <vector>
 
 namespace Sai {
 namespace Franka {
@@ -145,15 +152,16 @@ public:
 		}
 	}
 
+	template<typename MassDerived, typename ExtraMatrixDerived>
 	void setGetBatchCommands(const std::vector<string> &cmd_mssg_vec, 
 			std::array<double, 7> &get_data_mssg_cmd_torques,
-			const Eigen::MatrixXd &set_data_mssg_massmatrix,
+			const Eigen::MatrixBase<MassDerived> &set_data_mssg_massmatrix,
+			const Eigen::MatrixBase<ExtraMatrixDerived> &set_data_mssg_extra_matrix,
 			const std::vector<std::array<double, 7>> &set_data_mssg_vec)
 	{
 		string data_mssg_indiv;
-		string batch_mssg = "";
 
-		int n_messages = set_data_mssg_vec.size() + 2;
+		const std::size_t n_messages = set_data_mssg_vec.size() + 3;
 
 		if(cmd_mssg_vec.size() != n_messages)
 		{
@@ -169,23 +177,23 @@ public:
 		hEigentoStringArrayJSON(set_data_mssg_massmatrix, data_mssg_indiv);
 		redisAppendCommand(context_,"SET %s %s", cmd_mssg_vec[1].c_str(), data_mssg_indiv.c_str());
 		++cmd;
-		for(int i=2; i < n_messages; i++)
+
+		hEigentoStringArrayJSON(set_data_mssg_extra_matrix, data_mssg_indiv);
+		redisAppendCommand(context_,"SET %s %s", cmd_mssg_vec[2].c_str(), data_mssg_indiv.c_str());
+		++cmd;
+
+		for(std::size_t i=0; i < set_data_mssg_vec.size(); i++)
 		{
-			hDoubleArraytoStringArrayJSON(set_data_mssg_vec[i-2], 7, data_mssg_indiv);
-			redisAppendCommand(context_,"SET %s %s", cmd_mssg_vec[i].c_str(), data_mssg_indiv.c_str());
+			hDoubleArraytoStringArrayJSON(set_data_mssg_vec[i], 7, data_mssg_indiv);
+			redisAppendCommand(context_,"SET %s %s", cmd_mssg_vec[i + 3].c_str(), data_mssg_indiv.c_str());
 			++cmd;
 		}
 	    /* Read (and process) the repliy to the get command */
 		int r = redisGetReply(context_, (void **) &reply_ );
 		if ( r == REDIS_ERR ) { printf("Error\n"); exit(-1); }	    
 		CHECK(reply_);   
-		if(!hDoubleArrayFromStringArrayJSON(get_data_mssg_cmd_torques, 7, reply_->str)) {
-			freeReplyObject(reply_);
-			reply_ = NULL;
-			throw(runtime_error("Could not deserialize custom string to eigen data!"));
-		}
+		const bool parsed_get_reply = hDoubleArray7FromFlatJSON(get_data_mssg_cmd_torques, reply_->str);
 		freeReplyObject(reply_);
-		reply_ = NULL;
 		cmd--;
 
 	    /* Read (and ignore) the replies to the set commands */
@@ -195,6 +203,10 @@ public:
 			if ( r == REDIS_ERR ) { printf("Error\n"); exit(-1); }
 			CHECK(reply_);        
 			freeReplyObject(reply_);
+		}
+
+		if(!parsed_get_reply) {
+			throw(runtime_error("Could not deserialize custom string to eigen data!"));
 		}
 	}
 
@@ -297,6 +309,9 @@ public:
 	//TODO: decide if needed. Currently, we throw up if server disconnects
 	//bool connected_;
 protected:
+	static void hAppendDoubleToJSON(std::string &, const double &);
+	static bool hDoubleArray7FromFlatJSON(std::array<double, 7> &, const char *);
+
 	template<typename Derived>
 	bool hEigentoStringArrayJSON(const Eigen::MatrixBase<Derived> &, std::string &);
 
@@ -329,13 +344,71 @@ private:
 };
 
 //Implementation must be part of header for compile time template specialization
+inline void CDatabaseRedisClient::hAppendDoubleToJSON(std::string& arg_str, const double& value)
+{
+	char buffer[32];
+	const int n_chars = std::snprintf(buffer, sizeof(buffer), "%.6g", value);
+	if(n_chars > 0) {
+		arg_str.append(buffer, static_cast<std::size_t>(n_chars));
+	}
+}
+
+inline bool CDatabaseRedisClient::hDoubleArray7FromFlatJSON(std::array<double, 7>& x, const char* arg_str)
+{
+	if(arg_str == nullptr) {
+		return false;
+	}
+
+	const char* p = arg_str;
+	auto skip_whitespace = [&p]() {
+		while(*p != '\0' && std::isspace(static_cast<unsigned char>(*p))) {
+			++p;
+		}
+	};
+
+	skip_whitespace();
+	if(*p != '[') {
+		return false;
+	}
+	++p;
+
+	for(std::size_t i = 0; i < x.size(); ++i) {
+		skip_whitespace();
+		errno = 0;
+		char* number_end = nullptr;
+		const double value = std::strtod(p, &number_end);
+		if(number_end == p || errno == ERANGE || !std::isfinite(value)) {
+			return false;
+		}
+		x[i] = value;
+		p = number_end;
+
+		skip_whitespace();
+		if(i + 1 < x.size()) {
+			if(*p != ',') {
+				return false;
+			}
+			++p;
+		}
+	}
+
+	skip_whitespace();
+	if(*p != ']') {
+		return false;
+	}
+	++p;
+	skip_whitespace();
+	return *p == '\0';
+}
+
 template<typename Derived>
 bool CDatabaseRedisClient::hEigentoStringArrayJSON(const Eigen::MatrixBase<Derived>& x, std::string& arg_str)
 {
-	std::stringstream ss;
 	bool row_major = true;
 	if(x.cols() == 1) row_major = false; //This is a Vector!
-	arg_str = "[";
+	arg_str.clear();
+	arg_str.reserve(static_cast<std::size_t>(x.size()) * 12 + static_cast<std::size_t>(x.rows()) * 2 + 2);
+	arg_str.append("[");
 	if(row_major)
 	{// [1 2 3; 4 5 6] == [ [1, 2, 3], [4, 5, 6] ]
 	  for(int i=0;i<x.rows();++i){
@@ -346,10 +419,8 @@ bool CDatabaseRedisClient::hEigentoStringArrayJSON(const Eigen::MatrixBase<Deriv
 	    }
 	    else if(i>0) arg_str.append(",");
 	    for(int j=0;j<x.cols();++j){
-	      ss<<x(i,j);
 	      if(j>0) arg_str.append(",");
-	      arg_str.append(ss.str());
-	      ss.str(std::string());
+	      hAppendDoubleToJSON(arg_str, x(i,j));
 	    }
 	    if(x.rows() > 1){
 	      // If it is only one row, don't need the second one
@@ -368,10 +439,8 @@ bool CDatabaseRedisClient::hEigentoStringArrayJSON(const Eigen::MatrixBase<Deriv
 	    }
 	    else if(j>0) arg_str.append(",");
 	    for(int i=0;i<x.rows();++i){
-	      ss<<x(i,j);
 	      if(i>0) arg_str.append(",");
-	      arg_str.append(ss.str());
-	      ss.str(std::string());
+	      hAppendDoubleToJSON(arg_str, x(i,j));
 	    }
 	    if(x.cols() > 1){
 	      // If it is only one row, don't need the second one
@@ -386,17 +455,16 @@ bool CDatabaseRedisClient::hEigentoStringArrayJSON(const Eigen::MatrixBase<Deriv
 template<long unsigned int n>
 bool CDatabaseRedisClient::hDoubleArraytoStringArrayJSON(const std::array<double, n> &x, const int& array_length, std::string& arg_str)
 {
-	std::stringstream ss;
-	arg_str = "[";
+	arg_str.clear();
+	arg_str.reserve(static_cast<std::size_t>(array_length) * 12 + 2);
+	arg_str.append("[");
 	for(int i=0; i<array_length; ++i)
 	{
 		if(i>0) 
 		{
 			arg_str.append(",");
 		}
-		ss<<x[i];
-		arg_str.append(ss.str());
-		ss.str(std::string());
+		hAppendDoubleToJSON(arg_str, x[i]);
 	}
 	arg_str.append("]");
 	return true;
