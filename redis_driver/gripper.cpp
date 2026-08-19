@@ -22,6 +22,8 @@ std::string GRIPPER_CURRENT_WIDTH_KEY;
 std::string GRIPPER_DESIRED_WIDTH_KEY;
 std::string GRIPPER_DESIRED_SPEED_KEY;
 std::string GRIPPER_DESIRED_FORCE_KEY;
+std::string GRIPPER_GRASP_SUCCESSFUL_KEY;
+std::string GRIPPER_MOVE_SUCCESSFUL_KEY;
 
 #include <signal.h>
 bool runloop = false;
@@ -71,6 +73,8 @@ int main(int argc, char** argv) {
     GRIPPER_DESIRED_WIDTH_KEY  = "sai2::FrankaPanda::Romeo::gripper::desired_width";
     GRIPPER_DESIRED_SPEED_KEY  = "sai2::FrankaPanda::Romeo::gripper::desired_speed";
     GRIPPER_DESIRED_FORCE_KEY  = "sai2::FrankaPanda::Romeo::gripper::desired_force";   
+    GRIPPER_GRASP_SUCCESSFUL_KEY = "sai2::FrankaPanda::Romeo::gripper::grasp_successful";
+    GRIPPER_MOVE_SUCCESSFUL_KEY = "sai2::FrankaPanda::Romeo::gripper::move_successful";
   }
   else if(robot_ip == "172.16.0.11")
   {
@@ -219,6 +223,7 @@ int main(int argc, char** argv) {
             // bool grasp_successful = gripper.grasp(gripper_desired_width, gripper_desired_speed, gripper_desired_force, 1.0, 1.0);
             // bool grasp_successful = gripper.grasp(0, gripper_desired_speed, gripper_desired_force, 0, 0);
           std::cout << "grasp status: " << grasp_successful << "\n";
+          redis_client.setCommandIs(GRIPPER_GRASP_SUCCESSFUL_KEY, std::to_string(grasp_successful));
           if (!grasp_successful) {
             failed_flag = 1;            
           } else {
@@ -242,6 +247,7 @@ int main(int argc, char** argv) {
         }
         else if (gripper_mode == "o") {
           bool move_successful = gripper.move(gripper_state.max_width, gripper_desired_speed);   
+          redis_client.setCommandIs(GRIPPER_MOVE_SUCCESSFUL_KEY, std::to_string(move_successful));
           if (!move_successful) {
             failed_flag = 1;
             gripper_desired_width = gripper_state.width + 0.01;
